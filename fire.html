@@ -117,6 +117,7 @@
       <span style="color:#8899aa">WASD / 摇杆 移动 · 自动射击 · 拾取道具换武器</span>
     </p>
     <button class="btn" onclick="showLevelSelect()">出击</button>
+    <button class="btn" onclick="showSettings()" style="margin-top:12px;background:linear-gradient(135deg,#4b5563,#1f2937);font-size:15px;padding:12px 42px">设置</button>
   </div>
 
   <div id="levelSelectScreen" class="screen hidden">
@@ -154,6 +155,25 @@
     <button class="btn" onclick="retryLevel()">重新出击</button>
     <button class="btn" onclick="showLevelSelect()" style="margin-top:10px;background:linear-gradient(135deg,#4b5563,#1f2937);font-size:14px;padding:12px 36px">任务选择</button>
   </div>
+
+  <div id="settingsScreen" class="screen hidden">
+    <h1 style="font-size:34px;margin-bottom:8px">设置</h1>
+    <h2 style="margin-bottom:28px">SETTINGS</h2>
+    <div style="min-width:280px;text-align:left">
+      <div style="margin-bottom:24px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <span style="color:#cbd5e1;font-size:15px">移动灵敏度</span>
+          <span id="sensitivityValue" style="color:#60a5fa;font-weight:bold;font-size:15px">25%</span>
+        </div>
+        <input type="range" id="sensitivitySlider" min="5" max="60" value="25" style="width:100%;accent-color:#3b82f6" oninput="updateSensitivity(this.value)">
+        <div style="display:flex;justify-content:space-between;margin-top:6px;font-size:11px;color:#64748b">
+          <span>迟钝</span><span>灵敏</span>
+        </div>
+        <p style="font-size:12px;color:#64748b;margin-top:8px;line-height:1.6">建议手机端调低（10-20），电脑端可调高（20-40）</p>
+      </div>
+    </div>
+    <button class="btn" onclick="closeSettings()">返回</button>
+  </div>
 </div>
 <button id="muteBtn" onclick="toggleMute()">🔊</button>
 
@@ -164,6 +184,26 @@ let W,H;
 function resize(){W=canvas.width=window.innerWidth;H=canvas.height=window.innerHeight;}
 window.addEventListener('resize',resize);
 resize();
+
+// ===== 设置 =====
+const SETTINGS={
+  sensitivity: (('ontouchstart' in window)||(navigator.maxTouchPoints>1))?0.15:0.25,
+};
+function updateSensitivity(val){
+  SETTINGS.sensitivity=val/100;
+  document.getElementById('sensitivityValue').textContent=val+'%';
+}
+function showSettings(){
+  document.getElementById('menuScreen').classList.add('hidden');
+  document.getElementById('settingsScreen').classList.remove('hidden');
+  const pct=Math.round(SETTINGS.sensitivity*100);
+  document.getElementById('sensitivitySlider').value=pct;
+  document.getElementById('sensitivityValue').textContent=pct+'%';
+}
+function closeSettings(){
+  document.getElementById('settingsScreen').classList.add('hidden');
+  document.getElementById('menuScreen').classList.remove('hidden');
+}
 
 // ===== 音效系统 =====
 let audioCtx=null; let muted=false;
@@ -439,8 +479,9 @@ class Player{
     if(joystick.active){mx=joystick.dx; my=joystick.dy;}
     const len=Math.hypot(mx,my);
     if(len>0){mx/=len; my/=len;}
-    this.vx+=(mx*this.speed-this.vx)*0.25;
-    this.vy+=(my*this.speed-this.vy)*0.25;
+    const accel=SETTINGS.sensitivity;
+    this.vx+=(mx*this.speed-this.vx)*accel;
+    this.vy+=(my*this.speed-this.vy)*accel;
     this.x+=this.vx; this.y+=this.vy;
     this.x=Math.max(this.radius,Math.min(W-this.radius,this.x));
     this.y=Math.max(this.radius,Math.min(H-this.radius,this.y));
