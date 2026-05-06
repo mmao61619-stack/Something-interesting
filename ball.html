@@ -1,0 +1,4609 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>祖玛 - Zuma Web Edition</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #0d0505;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+            user-select: none;
+            padding: 0;
+        }
+        #gameWrapper {
+            position: relative;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 0 60px rgba(139, 69, 19, 0.4);
+            max-width: 100%;
+            max-height: 100%;
+        }
+        canvas {
+            display: block;
+            cursor: crosshair;
+        }
+
+        /* ===== 覆盖层基础 ===== */
+        .ui-overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            background: radial-gradient(ellipse at center, rgba(20, 12, 6, 0.82) 0%, rgba(8, 4, 2, 0.94) 100%);
+            z-index: 10;
+            color: #fff;
+            opacity: 0;
+            transition: opacity 0.4s ease;
+        }
+        .ui-overlay.active {
+            display: flex;
+            opacity: 1;
+        }
+
+        /* ===== 石板卡片容器 ===== */
+        .stone-card {
+            background: linear-gradient(180deg, #2a2010 0%, #1a1208 100%);
+            border: 3px solid #b8963a;
+            border-radius: 4px;
+            padding: 42px 56px;
+            position: relative;
+            box-shadow:
+                0 0 0 2px #5a4018,
+                0 0 0 6px #b8963a,
+                0 0 40px rgba(184, 150, 58, 0.25),
+                inset 0 0 60px rgba(0,0,0,0.5);
+            max-width: 520px;
+            animation: cardIn 0.5s ease-out;
+        }
+        .stone-card::before, .stone-card::after {
+            content: '';
+            position: absolute;
+            width: 14px; height: 14px;
+            background: #b8963a;
+            border: 2px solid #f0d880;
+            box-shadow: 0 0 6px rgba(240, 216, 128, 0.5);
+        }
+        .stone-card::before { top: 8px; left: 8px; }
+        .stone-card::after { top: 8px; right: 8px; }
+        .stone-card .corner-bl, .stone-card .corner-br {
+            position: absolute;
+            width: 14px; height: 14px;
+            background: #b8963a;
+            border: 2px solid #f0d880;
+            box-shadow: 0 0 6px rgba(240, 216, 128, 0.5);
+            bottom: 8px;
+        }
+        .stone-card .corner-bl { left: 8px; }
+        .stone-card .corner-br { right: 8px; }
+
+        @keyframes cardIn {
+            from { transform: scale(0.85) translateY(20px); opacity: 0; }
+            to   { transform: scale(1) translateY(0); opacity: 1; }
+        }
+
+        /* ===== 标题文字 ===== */
+        .ui-overlay h1 {
+            font-size: 64px;
+            letter-spacing: 12px;
+            color: #ffd700;
+            text-shadow:
+                0 0 10px rgba(255, 215, 0, 0.4),
+                0 2px 0 #b8860b,
+                0 4px 0 #8b6508;
+            margin-bottom: 6px;
+            font-weight: 900;
+        }
+        .ui-overlay h2 {
+            font-size: 36px;
+            margin-bottom: 10px;
+            letter-spacing: 4px;
+        }
+        .ui-overlay p {
+            font-size: 16px;
+            color: #d4b896;
+            margin: 5px 0;
+            line-height: 1.6;
+        }
+
+        /* ===== 装饰分隔线 ===== */
+        .egypt-divider {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            margin: 16px 0;
+            color: #b8963a;
+            font-size: 20px;
+        }
+        .egypt-divider::before, .egypt-divider::after {
+            content: '';
+            display: block;
+            width: 60px;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, #b8963a, transparent);
+        }
+
+        /* ===== 按钮（石碑风格） ===== */
+        .btn {
+            margin-top: 18px;
+            padding: 14px 48px;
+            font-size: 18px;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            letter-spacing: 3px;
+            transition: all 0.2s ease;
+            position: relative;
+            overflow: hidden;
+            font-weight: bold;
+        }
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+        }
+        .btn:active { transform: translateY(0); }
+        .btn-primary {
+            background: linear-gradient(180deg, #e0b030, #b8860b);
+            color: #1a0a00;
+            border: 2px solid #f0d880;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.3), 0 4px 0 #8b6508, 0 6px 10px rgba(0,0,0,0.3);
+        }
+        .btn-primary:hover {
+            background: linear-gradient(180deg, #f0c040, #c8961b);
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.4), 0 4px 0 #8b6508, 0 8px 16px rgba(0,0,0,0.35);
+        }
+        .btn-secondary {
+            background: linear-gradient(180deg, #5a5040, #3a3228);
+            color: #daa520;
+            border: 2px solid #7a6a50;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), 0 4px 0 #2a2010, 0 6px 10px rgba(0,0,0,0.3);
+            margin-left: 12px;
+        }
+        .btn-secondary:hover {
+            background: linear-gradient(180deg, #6a6050, #4a4238);
+            color: #f0d880;
+        }
+
+        /* ===== 地图覆盖层 ===== */
+        .map-container {
+            background: linear-gradient(180deg, #3a2818 0%, #1e140a 100%);
+            border: 3px solid #b8963a;
+            border-radius: 8px;
+            padding: 16px 20px;
+            max-width: 720px;
+            width: 96%;
+            max-height: 92vh;
+            overflow-y: auto;
+            position: relative;
+            box-shadow:
+                0 0 0 2px #5a4018,
+                0 0 0 6px #b8963a,
+                0 0 50px rgba(184, 150, 58, 0.3),
+                inset 0 0 40px rgba(0,0,0,0.4);
+            animation: cardIn 0.5s ease-out;
+        }
+        .map-act-title {
+            font-size: 22px;
+            color: #ffd700;
+            text-shadow: 0 0 10px rgba(255, 215, 0, 0.4), 0 2px 0 #b8860b;
+            margin-bottom: 10px;
+            letter-spacing: 6px;
+        }
+        .map-world {
+            position: relative;
+            width: 100%;
+            height: min(340px, 42vh);
+            min-height: 220px;
+            background: linear-gradient(160deg, #c8a878 0%, #b89868 30%, #a88858 60%, #987848 100%);
+            border-radius: 6px;
+            border: 2px solid #6a5030;
+            overflow: hidden;
+            box-shadow: inset 0 0 30px rgba(60,40,20,0.35);
+        }
+        /* 地图网格纹理 */
+        .map-world::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-image:
+                linear-gradient(rgba(100,70,40,0.08) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(100,70,40,0.08) 1px, transparent 1px);
+            background-size: 40px 40px;
+            pointer-events: none;
+        }
+        /* 区域背景 */
+        .map-region-egypt {
+            position: absolute;
+            left: 4%; top: 34%;
+            width: 42%; height: 58%;
+            background: rgba(180, 150, 90, 0.22);
+            border-radius: 50% 40% 45% 55%;
+            border: 1px dashed rgba(140, 110, 60, 0.35);
+        }
+        .map-region-babylon {
+            position: absolute;
+            left: 38%; top: 16%;
+            width: 26%; height: 48%;
+            background: rgba(90, 160, 120, 0.18);
+            border-radius: 45% 55% 50% 40%;
+            border: 1px dashed rgba(60, 130, 90, 0.3);
+        }
+        .map-region-china {
+            position: absolute;
+            left: 58%; top: 8%;
+            width: 38%; height: 58%;
+            background: rgba(180, 90, 70, 0.18);
+            border-radius: 40% 50% 45% 55%;
+            border: 1px dashed rgba(140, 60, 40, 0.3);
+        }
+        .map-region-label {
+            position: absolute;
+            font-size: 13px;
+            font-weight: bold;
+            letter-spacing: 3px;
+            opacity: 0.55;
+            pointer-events: none;
+        }
+        /* 城市节点 */
+        .map-city-dot {
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            border: 2.5px solid;
+            z-index: 3;
+            transition: all 0.3s ease;
+            cursor: default;
+        }
+        .map-city-dot.current {
+            width: 22px;
+            height: 22px;
+            border-width: 3px;
+            animation: pulse 2s infinite;
+            z-index: 5;
+        }
+        .map-city-dot.completed {
+            background: #5a8a3a;
+            border-color: #7ac44a;
+        }
+        .map-city-dot.upcoming {
+            background: #3a3020;
+            border-color: #5a4a35;
+        }
+        .map-city-dot.current-egypt {
+            background: #e8c860;
+            border-color: #ffd700;
+            box-shadow: 0 0 14px rgba(255, 215, 0, 0.6);
+        }
+        .map-city-dot.current-babylon {
+            background: #60c8a0;
+            border-color: #88f0c8;
+            box-shadow: 0 0 14px rgba(100, 240, 180, 0.6);
+        }
+        .map-city-dot.current-china {
+            background: #e86048;
+            border-color: #ff8870;
+            box-shadow: 0 0 14px rgba(255, 100, 80, 0.6);
+        }
+        .map-city-label {
+            position: absolute;
+            font-size: 10px;
+            font-weight: bold;
+            white-space: nowrap;
+            transform: translate(-50%, -155%);
+            text-shadow: 0 1px 4px rgba(0,0,0,0.9), 0 0 6px rgba(0,0,0,0.7);
+            z-index: 4;
+            pointer-events: none;
+            letter-spacing: 1px;
+        }
+        .map-city-label.completed { color: #aadd88; }
+        .map-city-label.upcoming { color: #5a4530; }
+        .map-city-label.current { color: #fff; font-size: 11px; }
+        /* SVG路径 */
+        .map-path-svg {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            pointer-events: none;
+            z-index: 2;
+        }
+        @keyframes pulse {
+            0%, 100% { transform: translate(-50%, -50%) scale(1); }
+            50% { transform: translate(-50%, -50%) scale(1.25); }
+        }
+        .map-city-name {
+            font-size: 22px;
+            color: #ffd700;
+            margin: 14px 0 4px;
+            text-shadow: 0 0 8px rgba(255, 215, 0, 0.3);
+        }
+        .map-city-desc {
+            font-size: 15px;
+            color: #c4a878;
+            margin-bottom: 14px;
+        }
+
+        /* ===== 特殊文字样式 ===== */
+        .text-gold {
+            color: #ffd700;
+            text-shadow: 0 0 8px rgba(255, 215, 0, 0.35);
+        }
+        .text-green {
+            color: #44ff88;
+            text-shadow: 0 0 10px rgba(68, 255, 136, 0.35);
+        }
+        .text-red {
+            color: #ff4444;
+            text-shadow: 0 0 10px rgba(255, 68, 68, 0.35);
+        }
+        .text-purple {
+            color: #d080ff;
+            text-shadow: 0 0 10px rgba(200, 120, 255, 0.4);
+        }
+        .score-big {
+            font-size: 32px;
+            font-weight: bold;
+            color: #ffd700;
+            text-shadow: 0 0 12px rgba(255, 215, 0, 0.5);
+        }
+
+        /* ===== HUD ===== */
+        #hud {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 30px;
+            color: #ffe4a0;
+            font-size: 15px;
+            z-index: 5;
+            pointer-events: none;
+            text-shadow: 0 1px 4px rgba(0,0,0,0.95), 0 0 8px rgba(0,0,0,0.8);
+            background: rgba(10, 6, 2, 0.65);
+            padding: 7px 24px;
+            border-radius: 24px;
+            border: 1px solid rgba(184, 150, 58, 0.45);
+            backdrop-filter: blur(2px);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+        }
+        #hud span { color: #ffd700; font-weight: bold; text-shadow: 0 1px 3px rgba(0,0,0,0.9); }
+
+        /* ===== 换球按钮（手机） ===== */
+        #swapBtn {
+            position: absolute;
+            bottom: 14px;
+            right: 14px;
+            width: 52px;
+            height: 52px;
+            border-radius: 50%;
+            background: rgba(10, 6, 2, 0.55);
+            border: 2px solid rgba(184, 150, 58, 0.55);
+            color: #ffd700;
+            font-size: 22px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 6;
+            backdrop-filter: blur(2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.35);
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+            transition: transform 0.1s ease, background 0.2s ease;
+        }
+        #swapBtn:active { transform: scale(0.92); background: rgba(30, 20, 8, 0.75); }
+
+        /* ===== 暂停按钮 ===== */
+        #pauseBtn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            background: rgba(10, 6, 2, 0.55);
+            border: 2px solid rgba(184, 150, 58, 0.5);
+            color: #ffd700;
+            font-size: 16px;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 6;
+            backdrop-filter: blur(2px);
+            box-shadow: 0 3px 10px rgba(0,0,0,0.3);
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+            transition: transform 0.1s ease;
+        }
+        #pauseBtn:active { transform: scale(0.92); }
+        #pauseBtn.visible { display: flex; }
+    </style>
+</head>
+<body>
+<div id="gameWrapper">
+    <canvas id="gameCanvas"></canvas>
+    <div id="hud">
+        <div>分数: <span id="scoreVal">0</span></div>
+        <div>连击: <span id="comboVal">0</span></div>
+        <div>关卡: <span id="levelVal">1</span></div>
+        <div>生命: <span id="livesVal">3</span></div>
+        <div>球数: <span id="remainVal">0</span></div>
+    </div>
+    <button id="pauseBtn">⏸</button>
+    <button id="swapBtn">⇄</button>
+
+    <div id="menuOverlay" class="ui-overlay active">
+        <div class="stone-card">
+            <div class="corner-bl"></div><div class="corner-br"></div>
+            <h1>ZUMA</h1>
+            <div class="egypt-divider">&#9788;</div>
+            <p>消除相同颜色的球，阻止它们到达中心</p>
+            <p>鼠标/触摸瞄准 · 点击发射 · 3个以上同色相连即可消除</p>
+            <div class="egypt-divider">&#9788;</div>
+            <button class="btn btn-primary" id="startBtn">开始游戏</button>
+        </div>
+    </div>
+
+    <div id="gameoverOverlay" class="ui-overlay">
+        <div class="stone-card">
+            <div class="corner-bl"></div><div class="corner-br"></div>
+            <h2 class="text-red" style="font-size:44px; margin-bottom:6px;">菜，就多练！！</h2>
+            <div class="egypt-divider">&#9760;</div>
+            <p style="color:#ffaa66; font-size:18px; margin-bottom:14px;">你被怪物吃掉了</p>
+            <p>最终得分: <span id="finalScore" class="score-big">0</span></p>
+            <p>到达关卡: <span id="finalLevel" class="text-gold">1</span></p>
+            <div style="margin-top:10px;">
+                <button class="btn btn-primary" id="restartBtn">再来一次</button>
+                <button class="btn btn-secondary" id="menuBtn">返回菜单</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="levelOverlay" class="ui-overlay">
+        <div class="stone-card">
+            <div class="corner-bl"></div><div class="corner-br"></div>
+            <h2 class="text-green" style="font-size:36px; margin-bottom:6px;">哇，你太棒了！</h2>
+            <div class="egypt-divider">&#9788;</div>
+            <p style="color:#aaddaa; font-size:17px; margin-bottom:14px;">我们接着继续挑战吧！</p>
+            <p>得分: <span id="levelScore" class="score-big">0</span></p>
+            <div class="egypt-divider">&#9788;</div>
+            <button class="btn btn-primary" id="nextBtn">下一关</button>
+        </div>
+    </div>
+
+    <div id="victoryOverlay" class="ui-overlay">
+        <div class="stone-card">
+            <div class="corner-bl"></div><div class="corner-br"></div>
+            <h2 class="text-gold" style="font-size:40px; margin-bottom:6px;">🏆 通关！</h2>
+            <div class="egypt-divider">&#9788;</div>
+            <p style="color:#e8c860; font-size:18px; margin-bottom:14px;">你征服了丝绸之路，成为了真正的祖玛大师！</p>
+            <p>最终得分: <span id="victoryScore" class="score-big">0</span></p>
+            <div class="egypt-divider">&#9788;</div>
+            <div style="margin-top:10px;">
+                <button class="btn btn-primary" id="victoryRestartBtn">再来一次</button>
+                <button class="btn btn-secondary" id="victoryMenuBtn">返回菜单</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="pauseOverlay" class="ui-overlay">
+        <div class="stone-card">
+            <div class="corner-bl"></div><div class="corner-br"></div>
+            <h2 class="text-gold" style="font-size:40px; margin-bottom:6px;">暂停中</h2>
+            <div class="egypt-divider">&#9788;</div>
+            <p style="color:#d4b896; font-size:16px; margin-bottom:14px;">点击继续返回游戏</p>
+            <div style="margin-top:10px;">
+                <button class="btn btn-primary" id="resumeBtn">继续游戏</button>
+                <button class="btn btn-secondary" id="pauseMenuBtn">返回菜单</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="mapOverlay" class="ui-overlay">
+        <div class="map-container">
+            <div class="map-act-title" id="mapActTitle">第一幕：埃及</div>
+            <div class="map-world" id="mapWorld">
+                <svg class="map-path-svg" id="mapPathSvg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" preserveAspectRatio="none"></svg>
+            </div>
+            <div class="map-city-name" id="mapCityName">孟菲斯</div>
+            <div class="map-city-desc" id="mapCityDesc">尼罗河畔的古老都城</div>
+            <button class="btn btn-primary" id="mapBtn">开始挑战</button>
+        </div>
+    </div>
+</div>
+
+<script>
+// ===================== 配置 =====================
+const CFG = {
+    W: 960, H: 640,
+    CX: 480, CY: 320,
+    PATH_OUTER: 380, PATH_INNER: 155,
+    LOOPS: 5,
+    PATH_PTS: 6000,
+    BALL_R: 18,
+    FROG_X: 480, FROG_Y: 320,
+    SHOOTER_OFF: 42,
+    PROJ_SPEED: 15,
+    MATCH_MIN: 3,
+    MAX_LEVEL: 24
+};
+
+const COLORS = [
+    { m: '#e74c3c', l: '#ff6b6b', d: '#c0392b' },
+    { m: '#3498db', l: '#5dade2', d: '#2980b9' },
+    { m: '#2ecc71', l: '#58d68d', d: '#27ae60' },
+    { m: '#f1c40f', l: '#f4d03f', d: '#d4ac0d' },
+    { m: '#9b59b6', l: '#af7ac5', d: '#7d3c98' },
+    { m: '#e67e22', l: '#eb984e', d: '#ca6f1e' }
+];
+
+// 特殊球类型
+const SPECIAL = {
+    BOMB: 'bomb',   // 炸弹：消除周围球
+    SLOW: 'slow'    // 减速：减缓球链速度
+};
+
+// ===================== 多幕城市数据 =====================
+const CITIES = [
+    // 第一幕：埃及（8城）
+    { id: 0, name: '孟菲斯', act: 1, actName: '第一幕：埃及', desc: '尼罗河畔的古老都城', shape: 0, theme: 'egypt', shooter: 'frog', guideLen: 400, speedMul: 1.0,  mapX: 24, mapY: 55 },
+    { id: 1, name: '吉萨', act: 1, actName: '第一幕：埃及', desc: '金字塔下的试炼', shape: 1, theme: 'egypt', shooter: 'frog', guideLen: 390, speedMul: 1.04, mapX: 20, mapY: 48 },
+    { id: 2, name: '亚历山大', act: 1, actName: '第一幕：埃及', desc: '地中海的新娘', shape: 3, theme: 'egypt', shooter: 'frog', guideLen: 380, speedMul: 1.08, mapX: 18, mapY: 42 },
+    { id: 3, name: '锡瓦', act: 1, actName: '第一幕：埃及', desc: '绿洲中的神谕所', shape: 2, theme: 'egypt', shooter: 'frog', guideLen: 370, speedMul: 1.12, mapX: 14, mapY: 50 },
+    { id: 4, name: '底比斯', act: 1, actName: '第一幕：埃及', desc: '神庙林立的圣城', shape: 4, theme: 'egypt', shooter: 'frog', guideLen: 360, speedMul: 1.16, mapX: 30, mapY: 60 },
+    { id: 5, name: '赫尔格达', act: 1, actName: '第一幕：埃及', desc: '红海之滨的港口', shape: 5, theme: 'egypt', shooter: 'frog', guideLen: 350, speedMul: 1.2,  mapX: 34, mapY: 54 },
+    { id: 6, name: '阿布辛贝', act: 1, actName: '第一幕：埃及', desc: '拉美西斯的荣耀', shape: 6, theme: 'egypt', shooter: 'frog', guideLen: 340, speedMul: 1.24, mapX: 38, mapY: 68 },
+    { id: 7, name: '库什', act: 1, actName: '第一幕：埃及', desc: '努比亚黑土之国的秘密', shape: 0, theme: 'egypt', shooter: 'frog', guideLen: 330, speedMul: 1.28, mapX: 42, mapY: 74 },
+    // 第二幕：巴比伦（8城）
+    { id: 8, name: '巴比伦', act: 2, actName: '第二幕：巴比伦', desc: '空中花园的水渠', shape: 1, theme: 'babylon', shooter: 'lion', guideLen: 400, speedMul: 1.32, mapX: 46, mapY: 42 },
+    { id: 9, name: '耶路撒冷', act: 2, actName: '第二幕：巴比伦', desc: '圣城的高墙', shape: 3, theme: 'babylon', shooter: 'lion', guideLen: 390, speedMul: 1.36, mapX: 48, mapY: 38 },
+    { id: 10, name: '大马士革', act: 2, actName: '第二幕：巴比伦', desc: '沙漠中的天堂', shape: 2, theme: 'babylon', shooter: 'lion', guideLen: 380, speedMul: 1.4, mapX: 52, mapY: 36 },
+    { id: 11, name: '尼尼微', act: 2, actName: '第二幕：巴比伦', desc: '亚述帝国的要塞', shape: 5, theme: 'babylon', shooter: 'lion', guideLen: 370, speedMul: 1.44, mapX: 44, mapY: 32 },
+    { id: 12, name: '佩特拉', act: 2, actName: '第二幕：巴比伦', desc: '玫瑰红的岩石之城', shape: 4, theme: 'babylon', shooter: 'lion', guideLen: 360, speedMul: 1.48, mapX: 50, mapY: 44 },
+    { id: 13, name: '乌尔', act: 2, actName: '第二幕：巴比伦', desc: '幼发拉底河的波浪', shape: 6, theme: 'babylon', shooter: 'lion', guideLen: 350, speedMul: 1.52, mapX: 54, mapY: 46 },
+    { id: 14, name: '苏萨', act: 2, actName: '第二幕：巴比伦', desc: '埃兰古都的宝藏', shape: 0, theme: 'babylon', shooter: 'lion', guideLen: 340, speedMul: 1.56, mapX: 58, mapY: 44 },
+    { id: 15, name: '波斯波利斯', act: 2, actName: '第二幕：巴比伦', desc: '万门之宫的迷宫', shape: 1, theme: 'babylon', shooter: 'lion', guideLen: 330, speedMul: 1.6,  mapX: 62, mapY: 48 },
+    // 第三幕：中华（8城）
+    { id: 16, name: '长安', act: 3, actName: '第三幕：中华', desc: '丝绸之路的起点', shape: 2, theme: 'china', shooter: 'dragon', guideLen: 400, speedMul: 1.64, mapX: 68, mapY: 40 },
+    { id: 17, name: '敦煌', act: 3, actName: '第三幕：中华', desc: '莫高窟的壁画', shape: 3, theme: 'china', shooter: 'dragon', guideLen: 390, speedMul: 1.68, mapX: 64, mapY: 36 },
+    { id: 18, name: '嘉峪关', act: 3, actName: '第三幕：中华', desc: '长城上的烽火', shape: 5, theme: 'china', shooter: 'dragon', guideLen: 380, speedMul: 1.72, mapX: 62, mapY: 32 },
+    { id: 19, name: '洛阳', act: 3, actName: '第三幕：中华', desc: '牡丹花城的挑战', shape: 4, theme: 'china', shooter: 'dragon', guideLen: 370, speedMul: 1.76, mapX: 72, mapY: 42 },
+    { id: 20, name: '紫禁城', act: 3, actName: '第三幕：中华', desc: '龙椅前的最终试炼', shape: 6, theme: 'china', shooter: 'dragon', guideLen: 360, speedMul: 1.8,  mapX: 78, mapY: 30 },
+    { id: 21, name: '南京', act: 3, actName: '第三幕：中华', desc: '六朝金粉地', shape: 0, theme: 'china', shooter: 'dragon', guideLen: 350, speedMul: 1.84, mapX: 76, mapY: 46 },
+    { id: 22, name: '杭州', act: 3, actName: '第三幕：中华', desc: '西子湖畔的烟雨', shape: 1, theme: 'china', shooter: 'dragon', guideLen: 340, speedMul: 1.88, mapX: 80, mapY: 50 },
+    { id: 23, name: '桂林', act: 3, actName: '第三幕：中华', desc: '山水甲天下的考验', shape: 2, theme: 'china', shooter: 'dragon', guideLen: 320, speedMul: 1.92, mapX: 74, mapY: 56 },
+];
+
+// ===================== 全局状态 =====================
+let canvas, ctx;
+let path = [];
+let balls = [];
+let particles = [];
+let shot = null;
+let score = 0, combo = 0, cityIndex = 0, lives = 3;
+let curColor = 0, nextColor = 0;
+let angle = Math.PI / 2;
+let mouseX = 400, mouseY = 400;
+let running = false;
+let nextId = 0;
+let rollAccum = 0;
+let slowTimer = 0;   // 减速效果剩余帧数
+let comboFlash = 0;  // 连击屏幕闪烁强度 (0-1)
+let floatTexts = []; // 飘字数组 {x, y, text, color, life, vy}
+let paused = false;
+
+const FIXED_DT = 1 / 60;
+let accumulator = 0;
+let lastTime = 0;
+
+function getLevel() { return cityIndex + 1; }
+function getCity() { return CITIES[cityIndex] || CITIES[0]; }
+
+// ===================== 音效 / BGM =====================
+let audioCtx;
+let bgmOsc, bgmGain, bgmInterval;
+
+function playRollSound() {
+    if (!audioCtx) return;
+    const now = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(160 + Math.random() * 80, now);
+    gain.gain.setValueAtTime(0.035, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+    osc.start(now);
+    osc.stop(now + 0.05);
+}
+
+function startBGM() {
+    if (!audioCtx) initAudio();
+    stopBGM();
+
+    const city = getCity();
+    let melody, mainType, droneType, droneMul, droneGain, bassType, bassFreq, bassGain;
+
+    if (city.theme === 'egypt') {
+        // 埃及：阴森异域小调，sine + triangle
+        melody = [
+            {n: 110, d: 0.8}, {n: 0, d: 0.3},
+            {n: 130, d: 0.6}, {n: 0, d: 0.2},
+            {n: 110, d: 0.7}, {n: 0, d: 0.25},
+            {n: 146, d: 0.9}, {n: 0, d: 0.35},
+            {n: 98,  d: 0.7}, {n: 0, d: 0.2},
+            {n: 123, d: 0.6}, {n: 0, d: 0.3},
+            {n: 110, d: 1.0}, {n: 0, d: 0.35},
+            {n: 146, d: 0.7}, {n: 0, d: 0.25},
+            {n: 82,  d: 1.1}, {n: 0, d: 0.4}
+        ];
+        mainType = 'sine'; droneType = 'triangle'; droneMul = 1.51; droneGain = 0.018;
+        bassType = 'sine'; bassFreq = 55; bassGain = 0.03;
+    } else if (city.theme === 'babylon') {
+        // 巴比伦：空灵竖琴风，triangle + sine
+        melody = [
+            {n: 196, d: 0.6}, {n: 220, d: 0.5}, {n: 0, d: 0.2},
+            {n: 261, d: 0.7}, {n: 220, d: 0.5}, {n: 0, d: 0.25},
+            {n: 196, d: 0.6}, {n: 174, d: 0.5}, {n: 0, d: 0.2},
+            {n: 220, d: 0.8}, {n: 196, d: 0.6}, {n: 0, d: 0.3},
+            {n: 261, d: 0.6}, {n: 293, d: 0.5}, {n: 0, d: 0.2},
+            {n: 261, d: 0.7}, {n: 220, d: 0.6}, {n: 0, d: 0.3},
+            {n: 196, d: 1.0}, {n: 0, d: 0.4}
+        ];
+        mainType = 'triangle'; droneType = 'sine'; droneMul = 1.5; droneGain = 0.015;
+        bassType = 'sine'; bassFreq = 65; bassGain = 0.025;
+    } else {
+        // 中华：笛子五声音阶，sine + triangle
+        melody = [
+            {n: 261, d: 0.55}, {n: 293, d: 0.45}, {n: 0, d: 0.15},
+            {n: 392, d: 0.7},  {n: 349, d: 0.5},  {n: 0, d: 0.2},
+            {n: 293, d: 0.55}, {n: 261, d: 0.45}, {n: 0, d: 0.15},
+            {n: 392, d: 0.8},  {n: 293, d: 0.6},  {n: 0, d: 0.25},
+            {n: 349, d: 0.55}, {n: 392, d: 0.45}, {n: 0, d: 0.15},
+            {n: 523, d: 0.7},  {n: 392, d: 0.6},  {n: 0, d: 0.25},
+            {n: 349, d: 0.55}, {n: 293, d: 0.5},  {n: 0, d: 0.2},
+            {n: 261, d: 1.1},  {n: 0, d: 0.35}
+        ];
+        mainType = 'sine'; droneType = 'triangle'; droneMul = 1.5; droneGain = 0.012;
+        bassType = 'triangle'; bassFreq = 82; bassGain = 0.02;
+    }
+
+    let noteIdx = 0;
+
+    function playNote() {
+        if (!running || !bgmInterval) return;
+        const note = melody[noteIdx % melody.length];
+        noteIdx++;
+
+        if (note.n !== 0) {
+            const now = audioCtx.currentTime;
+            // 主音
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.type = mainType;
+            osc.frequency.setValueAtTime(note.n, now);
+            gain.gain.setValueAtTime(0.05, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + note.d);
+            osc.start(now);
+            osc.stop(now + note.d);
+
+            // 陪音
+            const osc2 = audioCtx.createOscillator();
+            const gain2 = audioCtx.createGain();
+            osc2.connect(gain2);
+            gain2.connect(audioCtx.destination);
+            osc2.type = droneType;
+            osc2.frequency.setValueAtTime(note.n * droneMul, now);
+            gain2.gain.setValueAtTime(droneGain, now);
+            gain2.gain.exponentialRampToValueAtTime(0.001, now + note.d * 0.7);
+            osc2.start(now);
+            osc2.stop(now + note.d * 0.7);
+
+            // 极低音垫底（仅重音）
+            if (noteIdx % 7 === 2) {
+                const osc3 = audioCtx.createOscillator();
+                const gain3 = audioCtx.createGain();
+                osc3.connect(gain3);
+                gain3.connect(audioCtx.destination);
+                osc3.type = bassType;
+                osc3.frequency.setValueAtTime(bassFreq, now);
+                gain3.gain.setValueAtTime(bassGain, now);
+                gain3.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+                osc3.start(now);
+                osc3.stop(now + 0.6);
+            }
+        }
+
+        const nextDelay = note.d * 1000;
+        bgmInterval = setTimeout(playNote, nextDelay);
+    }
+
+    bgmInterval = setTimeout(playNote, 300);
+}
+
+function stopBGM() {
+    if (bgmOsc) { bgmOsc.stop(); bgmOsc = null; }
+    if (bgmInterval) { clearTimeout(bgmInterval); bgmInterval = null; }
+}
+
+function initAudio() {
+    if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+    }
+}
+
+function playSound(type) {
+    if (!audioCtx) return;
+    const now = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+
+    if (type === 'shoot') {
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(900, now);
+        osc.frequency.exponentialRampToValueAtTime(300, now + 0.12);
+        gain.gain.setValueAtTime(0.12, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+        osc.start(now);
+        osc.stop(now + 0.12);
+    } else if (type === 'hit') {
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(280, now);
+        gain.gain.setValueAtTime(0.18, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+        osc.start(now);
+        osc.stop(now + 0.08);
+    } else if (type === 'match') {
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(500, now);
+        osc.frequency.exponentialRampToValueAtTime(1400, now + 0.18);
+        gain.gain.setValueAtTime(0.14, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+        osc.start(now);
+        osc.stop(now + 0.22);
+    } else if (type === 'combo') {
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(700, now);
+        osc.frequency.exponentialRampToValueAtTime(1800, now + 0.2);
+        gain.gain.setValueAtTime(0.1, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+        osc.start(now);
+        osc.stop(now + 0.25);
+    } else if (type === 'gameover') {
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(350, now);
+        osc.frequency.exponentialRampToValueAtTime(80, now + 0.6);
+        gain.gain.setValueAtTime(0.14, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+        osc.start(now);
+        osc.stop(now + 0.6);
+    } else if (type === 'levelup') {
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(400, now);
+        osc.frequency.linearRampToValueAtTime(900, now + 0.12);
+        osc.frequency.linearRampToValueAtTime(1400, now + 0.24);
+        gain.gain.setValueAtTime(0.14, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+        osc.start(now);
+        osc.stop(now + 0.35);
+    } else if (type === 'swap') {
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(600, now);
+        osc.frequency.exponentialRampToValueAtTime(800, now + 0.08);
+        gain.gain.setValueAtTime(0.08, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+        osc.start(now);
+        osc.stop(now + 0.1);
+    } else if (type === 'explode') {
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(200, now);
+        osc.frequency.exponentialRampToValueAtTime(60, now + 0.4);
+        gain.gain.setValueAtTime(0.2, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+        osc.start(now);
+        osc.stop(now + 0.4);
+    } else if (type === 'slow') {
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(300, now);
+        osc.frequency.linearRampToValueAtTime(150, now + 0.3);
+        gain.gain.setValueAtTime(0.1, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+        osc.start(now);
+        osc.stop(now + 0.3);
+    } else if (type === 'loseLife') {
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(250, now);
+        osc.frequency.exponentialRampToValueAtTime(100, now + 0.5);
+        gain.gain.setValueAtTime(0.15, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+        osc.start(now);
+        osc.stop(now + 0.5);
+    }
+}
+
+// ===================== 工具函数 =====================
+function dist(x1, y1, x2, y2) { return Math.hypot(x1-x2, y1-y2); }
+function randInt(n) { return Math.floor(Math.random() * n); }
+function randColor(maxC) { return randInt(Math.min(maxC, COLORS.length)); }
+
+function getPos(t) {
+    t = Math.max(0, Math.min(t, 0.9999));
+    const f = t * (path.length - 1);
+    const i = Math.floor(f);
+    const r = f - i;
+    const a = path[i], b = path[Math.min(path.length-1, i+1)];
+    return { x: a.x + (b.x-a.x)*r, y: a.y + (b.y-a.y)*r };
+}
+
+function getPosByArc(arc) {
+    arc = Math.max(0, Math.min(arc, CFG.TOTAL_ARC));
+    let lo = 0, hi = path.length - 1;
+    while (lo < hi) {
+        const mid = (lo + hi) >> 1;
+        if (path[mid].arcLen < arc) lo = mid + 1;
+        else hi = mid;
+    }
+    const i = Math.max(1, lo);
+    const a = path[i-1], b = path[i];
+    const r = b.arcLen === a.arcLen ? 0 : (arc - a.arcLen) / (b.arcLen - a.arcLen);
+    return { x: a.x + (b.x - a.x) * r, y: a.y + (b.y - a.y) * r };
+}
+
+function getDirByArc(arc) {
+    const p1 = getPosByArc(Math.max(0, arc - 2));
+    const p2 = getPosByArc(Math.min(CFG.TOTAL_ARC, arc + 2));
+    const dx = p2.x - p1.x, dy = p2.y - p1.y;
+    const len = Math.hypot(dx, dy);
+    return len > 0 ? {x: dx/len, y: dy/len} : {x:0, y:1};
+}
+
+function shadeColor(hex, pct) {
+    const num = parseInt(hex.replace('#',''), 16);
+    const amt = Math.round(2.55 * pct);
+    const R = Math.max(0, Math.min(255, (num>>16)+amt));
+    const G = Math.max(0, Math.min(255, ((num>>8)&0x00FF)+amt));
+    const B = Math.max(0, Math.min(255, (num&0x0000FF)+amt));
+    return '#' + (0x1000000 + R*0x10000 + G*0x100 + B).toString(16).slice(1);
+}
+
+// ===================== 初始化 =====================
+function init() {
+    canvas = document.getElementById('gameCanvas');
+    ctx = canvas.getContext('2d');
+    resize();
+    buildPath(1);
+
+    document.getElementById('startBtn').onclick = startGame;
+    document.getElementById('restartBtn').onclick = () => { hideOverlays(); startGame(); };
+    document.getElementById('menuBtn').onclick = showMenu;
+    document.getElementById('nextBtn').onclick = nextLevel;
+    document.getElementById('mapBtn').onclick = startCityFromMap;
+    document.getElementById('victoryRestartBtn').onclick = () => { hideOverlays(); startGame(); };
+    document.getElementById('victoryMenuBtn').onclick = showMenu;
+    document.getElementById('swapBtn').onclick = swapBall;
+    document.getElementById('pauseBtn').onclick = togglePause;
+    document.getElementById('resumeBtn').onclick = resumeGame;
+    document.getElementById('pauseMenuBtn').onclick = showMenu;
+
+    canvas.addEventListener('mousemove', e => {
+        const r = canvas.getBoundingClientRect();
+        mouseX = (e.clientX - r.left) * (CFG.W / r.width);
+        mouseY = (e.clientY - r.top) * (CFG.H / r.height);
+        angle = Math.atan2(mouseY - CFG.FROG_Y, mouseX - CFG.FROG_X);
+    });
+
+    canvas.addEventListener('mousedown', e => {
+        if (e.button === 0) shoot();
+        if (e.button === 2) { e.preventDefault(); swapBall(); }
+    });
+
+    canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+    canvas.addEventListener('touchmove', e => {
+        e.preventDefault();
+        const r = canvas.getBoundingClientRect();
+        mouseX = (e.touches[0].clientX - r.left) * (CFG.W / r.width);
+        mouseY = (e.touches[0].clientY - r.top) * (CFG.H / r.height);
+        angle = Math.atan2(mouseY - CFG.FROG_Y, mouseX - CFG.FROG_X);
+    }, {passive:false});
+
+    canvas.addEventListener('touchstart', e => {
+        e.preventDefault();
+        const r = canvas.getBoundingClientRect();
+        mouseX = (e.touches[0].clientX - r.left) * (CFG.W / r.width);
+        mouseY = (e.touches[0].clientY - r.top) * (CFG.H / r.height);
+        angle = Math.atan2(mouseY - CFG.FROG_Y, mouseX - CFG.FROG_X);
+        shoot();
+    }, {passive:false});
+
+    window.addEventListener('keydown', e => {
+        if (e.code === 'Space') { e.preventDefault(); swapBall(); }
+        if (e.code === 'Escape') { e.preventDefault(); togglePause(); }
+    });
+
+    window.addEventListener('resize', resize);
+    requestAnimationFrame(loop);
+}
+
+function resize() {
+    const margin = 40;
+    const scale = Math.min(
+        (window.innerWidth - margin) / CFG.W,
+        (window.innerHeight - margin) / CFG.H
+    );
+    const w = Math.floor(CFG.W * scale);
+    const h = Math.floor(CFG.H * scale);
+    canvas.style.width = w + 'px';
+    canvas.style.height = h + 'px';
+    canvas.width = CFG.W;
+    canvas.height = CFG.H;
+}
+
+function buildPath(lvl = 1) {
+    path = [];
+    let arcLen = 0;
+    const shape = (lvl - 1) % 7; // 7种轨道循环
+    const outer = CFG.PATH_OUTER;
+    const inner = CFG.PATH_INNER;
+    const cx = CFG.CX, cy = CFG.CY;
+
+    for (let i = 0; i < CFG.PATH_PTS; i++) {
+        const t = i / CFG.PATH_PTS;
+        let x, y;
+        switch (shape) {
+            case 0: { // 经典螺旋（6圈，适配横版不出界）
+                const s = 0.68;
+                const a = t * Math.PI * 2 * 6.0 - Math.PI / 2;
+                const r = outer - (outer - inner) * t;
+                x = cx + Math.cos(a) * r * s;
+                y = cy + Math.sin(a) * r * s;
+                break;
+            }
+            case 1: { // 椭圆螺旋（横向拉伸，适配横版）
+                const a = t * Math.PI * 2 * CFG.LOOPS - Math.PI / 2;
+                const r = outer - (outer - inner) * t;
+                x = cx + Math.cos(a) * r * 1.05;
+                y = cy + Math.sin(a) * r * 0.68;
+                break;
+            }
+            case 2: { // 波浪螺旋（5.2圈，开放路径，整体向内单调）
+                const a = t * Math.PI * 2 * 5.2 - Math.PI / 2;
+                const baseR = outer - (outer - inner) * t;
+                const wave = Math.sin(t * Math.PI * 3) * (outer - inner) * 0.07 * (1 - t);
+                const r = Math.max(inner, baseR + wave);
+                x = cx + Math.cos(a) * r * 1.05;
+                y = cy + Math.sin(a) * r * 0.62;
+                break;
+            }
+            case 3: { // 方形螺旋（5圈=20条边，适配横版不出界）
+                const loops = 20;
+                const side = t * loops;
+                const sideIdx = Math.floor(side) % 4;
+                const sideT = side - Math.floor(side);
+                const r = (outer - (outer - inner) * t) * 0.65;
+                const half = r;
+                switch (sideIdx) {
+                    case 0: x = cx - half + sideT * half * 2; y = cy - half; break;
+                    case 1: x = cx + half; y = cy - half + sideT * half * 2; break;
+                    case 2: x = cx + half - sideT * half * 2; y = cy + half; break;
+                    case 3: x = cx - half; y = cy + half - sideT * half * 2; break;
+                }
+                break;
+            }
+            case 4: { // 五角螺旋（6圈=30条边，开放路径）
+                const loops = 30;
+                const seg = t * loops;
+                const segIdx = Math.floor(seg) % 5;
+                const segT = seg - Math.floor(seg);
+                const r = (outer - (outer - inner) * t) * 0.68;
+                const angles = [ -Math.PI/2, -Math.PI/2 + Math.PI*2/5, -Math.PI/2 + Math.PI*4/5, -Math.PI/2 + Math.PI*6/5, -Math.PI/2 + Math.PI*8/5 ];
+                const ax = Math.cos(angles[0]) * r, ay = Math.sin(angles[0]) * r;
+                const bx = Math.cos(angles[1]) * r, by = Math.sin(angles[1]) * r;
+                const cx_ = Math.cos(angles[2]) * r, cy_ = Math.sin(angles[2]) * r;
+                const dx = Math.cos(angles[3]) * r, dy = Math.sin(angles[3]) * r;
+                const ex = Math.cos(angles[4]) * r, ey = Math.sin(angles[4]) * r;
+                const p0 = [{x:ax,y:ay}, {x:bx,y:by}, {x:cx_,y:cy_}, {x:dx,y:dy}, {x:ex,y:ey}];
+                const p1 = [{x:bx,y:by}, {x:cx_,y:cy_}, {x:dx,y:dy}, {x:ex,y:ey}, {x:ax,y:ay}];
+                const s = p0[segIdx], e = p1[segIdx];
+                x = cx + s.x + (e.x - s.x) * segT;
+                y = cy + s.y + (e.y - s.y) * segT;
+                break;
+            }
+            case 5: { // 波纹螺旋（5.5圈，开放路径）
+                const s = 0.66;
+                const a = t * Math.PI * 2 * 5.5 - Math.PI / 2;
+                const baseR = outer - (outer - inner) * t;
+                const wave = Math.sin(a * 3) * (outer - inner) * 0.06 * (1 - t);
+                const r = Math.max(inner, baseR + wave);
+                x = cx + Math.cos(a) * r * s;
+                y = cy + Math.sin(a) * r * s;
+                break;
+            }
+            case 6: { // 摆动螺旋（6圈，开放路径）
+                const s = 0.67;
+                const a = t * Math.PI * 2 * 6.0 - Math.PI / 2;
+                const baseR = outer - (outer - inner) * t;
+                const wobble = Math.sin(a * 4) * (outer - inner) * 0.04 * (1 - t);
+                const r = Math.max(inner, baseR + wobble);
+                x = cx + Math.cos(a) * r * s;
+                y = cy + Math.sin(a) * r * s;
+                break;
+            }
+            default: {
+                const a = t * Math.PI * 2 * CFG.LOOPS - Math.PI / 2;
+                const r = outer - (outer - inner) * t;
+                x = cx + Math.cos(a) * r;
+                y = cy + Math.sin(a) * r;
+            }
+        }
+        if (i > 0) {
+            arcLen += dist(x, y, path[i - 1].x, path[i - 1].y);
+        }
+        path.push({ x, y, arcLen });
+    }
+    CFG.TOTAL_ARC = arcLen;
+    CFG.BALL_SPACING_PX = CFG.BALL_R * 2 + 0.5;
+    CFG.BASE_SPEED_PX = 0.28;
+}
+
+// ===================== 游戏控制 =====================
+function startGame() {
+    score = 0; combo = 0; cityIndex = 0; lives = 3;
+    comboFlash = 0; floatTexts = [];
+    hideOverlays();
+    initAudio();
+    showMap();
+}
+
+function swapBall() {
+    if (!running) return;
+    const tmp = curColor;
+    curColor = nextColor;
+    nextColor = tmp;
+    playSound('swap');
+}
+
+function nextLevel() {
+    cityIndex++;
+    hideOverlays();
+    showMap();
+}
+
+function showMenu() {
+    running = false;
+    stopBGM();
+    hideOverlays();
+    document.getElementById('menuOverlay').classList.add('active');
+}
+
+function gameOver() {
+    running = false;
+    stopBGM();
+    playSound('gameover');
+    document.getElementById('finalScore').textContent = score;
+    document.getElementById('finalLevel').textContent = getCity().name;
+    document.getElementById('gameoverOverlay').classList.add('active');
+}
+
+function levelComplete() {
+    running = false;
+    stopBGM();
+    playSound('levelup');
+    document.getElementById('levelScore').textContent = score;
+    document.getElementById('levelOverlay').classList.add('active');
+}
+
+function victory() {
+    running = false;
+    stopBGM();
+    playSound('levelup');
+    document.getElementById('victoryScore').textContent = score;
+    document.getElementById('victoryOverlay').classList.add('active');
+}
+
+function togglePause() {
+    if (!running && !paused) return;
+    paused = !paused;
+    if (paused) {
+        running = false;
+        stopBGM();
+        document.getElementById('pauseOverlay').classList.add('active');
+    } else {
+        resumeGame();
+    }
+}
+
+function resumeGame() {
+    paused = false;
+    running = true;
+    hideOverlays();
+    startBGM();
+}
+
+function hideOverlays() {
+    document.querySelectorAll('.ui-overlay').forEach(el => el.classList.remove('active'));
+}
+
+function showMap() {
+    const city = getCity();
+    document.getElementById('mapActTitle').textContent = city.actName;
+    document.getElementById('mapCityName').textContent = city.name;
+    document.getElementById('mapCityDesc').textContent = city.desc;
+
+    const world = document.getElementById('mapWorld');
+    // 保留SVG，移除其他动态元素
+    const svg = document.getElementById('mapPathSvg');
+    world.innerHTML = '';
+    world.appendChild(svg);
+    svg.innerHTML = '';
+
+    // 添加区域背景
+    const regionEgypt = document.createElement('div');
+    regionEgypt.className = 'map-region-egypt';
+    world.appendChild(regionEgypt);
+    const regionBabylon = document.createElement('div');
+    regionBabylon.className = 'map-region-babylon';
+    world.appendChild(regionBabylon);
+    const regionChina = document.createElement('div');
+    regionChina.className = 'map-region-china';
+    world.appendChild(regionChina);
+
+    // 区域标题
+    const labels = [
+        { text: '埃 及', x: 18, y: 40, color: '#c8a860' },
+        { text: '巴比伦', x: 46, y: 22, color: '#60b890' },
+        { text: '中 华', x: 72, y: 16, color: '#d07058' }
+    ];
+    for (const lbl of labels) {
+        const el = document.createElement('div');
+        el.className = 'map-region-label';
+        el.textContent = lbl.text;
+        el.style.left = lbl.x + '%';
+        el.style.top = lbl.y + '%';
+        el.style.color = lbl.color;
+        world.appendChild(el);
+    }
+
+    // 绘制所有幕内城市之间的连接线（淡色虚线，像真正的地图路线）
+    let allPathD = '';
+    for (let i = 0; i < CITIES.length - 1; i++) {
+        const a = CITIES[i];
+        const b = CITIES[i + 1];
+        if (!a || !b || a.act !== b.act) continue;
+        allPathD += `M ${a.mapX} ${a.mapY} L ${b.mapX} ${b.mapY} `;
+    }
+    if (allPathD) {
+        const pathEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        pathEl.setAttribute('d', allPathD);
+        pathEl.setAttribute('stroke', 'rgba(184, 150, 58, 0.50)');
+        pathEl.setAttribute('stroke-width', '2');
+        pathEl.setAttribute('stroke-dasharray', '3,3');
+        pathEl.setAttribute('fill', 'none');
+        pathEl.setAttribute('stroke-linecap', 'round');
+        svg.appendChild(pathEl);
+    }
+
+    // 绘制幕间连接线
+    let interPathD = '';
+    for (let i = 0; i < CITIES.length - 1; i++) {
+        const a = CITIES[i];
+        const b = CITIES[i + 1];
+        if (!a || !b || a.act === b.act) continue;
+        interPathD += `M ${a.mapX} ${a.mapY} L ${b.mapX} ${b.mapY} `;
+    }
+    if (interPathD) {
+        const pathEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        pathEl.setAttribute('d', interPathD);
+        pathEl.setAttribute('stroke', 'rgba(184, 150, 58, 0.40)');
+        pathEl.setAttribute('stroke-width', '2.5');
+        pathEl.setAttribute('stroke-dasharray', '6,4');
+        pathEl.setAttribute('fill', 'none');
+        pathEl.setAttribute('stroke-linecap', 'round');
+        svg.appendChild(pathEl);
+    }
+
+    // 绘制已走过的路径（绿色实线）
+    let visitedPathD = '';
+    for (let i = 0; i < cityIndex; i++) {
+        const a = CITIES[i];
+        const b = CITIES[i + 1];
+        if (!a || !b) continue;
+        visitedPathD += `M ${a.mapX} ${a.mapY} L ${b.mapX} ${b.mapY} `;
+    }
+    if (visitedPathD) {
+        const pathEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        pathEl.setAttribute('d', visitedPathD);
+        pathEl.setAttribute('stroke', '#7ac44a');
+        pathEl.setAttribute('stroke-width', '2.5');
+        pathEl.setAttribute('fill', 'none');
+        pathEl.setAttribute('stroke-linecap', 'round');
+        svg.appendChild(pathEl);
+    }
+
+    // 绘制地理特征
+    function svgPath(d, stroke, width, dash, fill, opacity) {
+        const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        p.setAttribute('d', d);
+        p.setAttribute('stroke', stroke || 'none');
+        p.setAttribute('stroke-width', width || '0');
+        if (dash) p.setAttribute('stroke-dasharray', dash);
+        p.setAttribute('fill', fill || 'none');
+        if (opacity) p.setAttribute('opacity', opacity);
+        p.setAttribute('stroke-linecap', 'round');
+        svg.appendChild(p);
+    }
+    function svgPoly(points, fill, stroke, width, opacity) {
+        const p = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+        p.setAttribute('points', points);
+        p.setAttribute('fill', fill || 'none');
+        p.setAttribute('stroke', stroke || 'none');
+        p.setAttribute('stroke-width', width || '0');
+        if (opacity) p.setAttribute('opacity', opacity);
+        svg.appendChild(p);
+    }
+    function svgEllipse(cx, cy, rx, ry, fill, stroke, width, opacity) {
+        const e = document.createElementNS('http://www.w3.org/2000/svg', 'ellipse');
+        e.setAttribute('cx', cx); e.setAttribute('cy', cy);
+        e.setAttribute('rx', rx); e.setAttribute('ry', ry);
+        e.setAttribute('fill', fill || 'none');
+        e.setAttribute('stroke', stroke || 'none');
+        e.setAttribute('stroke-width', width || '0');
+        if (opacity) e.setAttribute('opacity', opacity);
+        svg.appendChild(e);
+    }
+    function svgText(x, y, text, color, size) {
+        const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        t.setAttribute('x', x); t.setAttribute('y', y);
+        t.setAttribute('fill', color || '#fff');
+        t.setAttribute('font-size', size || '3');
+        t.setAttribute('text-anchor', 'middle');
+        t.setAttribute('opacity', '0.45');
+        t.textContent = text;
+        svg.appendChild(t);
+    }
+
+    // ========== 手绘风格地理特征 ==========
+    // 地中海（手绘波浪海岸）
+    svgPath('M 0,28 C 5,27 10,29 15,27 C 20,25 24,22 27,17 C 30,12 31,6 29,2 C 27,0 24,0 20,0 L 0,0 Z', '#5a8aaa', '0.5', 'none', '#5a8aaa', '0.28');
+    // 海波纹
+    for (let i = 0; i < 3; i++) {
+        const wy = 6 + i * 7;
+        svgPath(`M 4,${wy} Q 7,${wy-1.5} 10,${wy} Q 13,${wy+1.5} 16,${wy} Q 19,${wy-1} 22,${wy}`, '#6a9aba', '0.5', 'none', 'none', '0.18');
+    }
+
+    // 红海（手绘）
+    svgPath('M 30,46 C 31,52 33,58 34,64 C 35,69 35,72 33,74 L 30,72 C 29,66 29,60 29,54 C 29,50 29,47 30,46 Z', '#5a8aaa', '0.4', 'none', '#5a8aaa', '0.22');
+    // 波斯湾（手绘）
+    svgPath('M 56,46 C 58,47 60,48 62,49 C 63,50 62,52 61,53 L 56,50 C 56,48 56,47 56,46 Z', '#5a8aaa', '0.4', 'none', '#5a8aaa', '0.22');
+    // 里海（手绘不规则湖）
+    svgPath('M 52,24 C 53,21 56,20 58,22 C 60,24 60,27 58,29 C 56,30 53,29 52,27 C 51,26 51,25 52,24 Z', '#5a8aaa', '0.5', 'none', '#5a8aaa', '0.3');
+    // 锡瓦绿洲
+    svgEllipse(14, 50, 1.5, 1, '#6a9a7a', 'none', '0', '0.2');
+
+    // 河流（手绘带波动）
+    // 尼罗河
+    svgPath('M 26,80 Q 25,74 24,68 Q 23,62 24,56 Q 24,50 22,44 Q 21,40 22,36 Q 22,33 22,32', '#6aa8c8', '1', 'none', 'none', '0.55');
+    svgPath('M 24,56 Q 26,53 28,53', '#6aa8c8', '0.6', 'none', 'none', '0.4'); // 三角洲支流
+    svgPath('M 24,68 Q 27,65 30,66', '#6aa8c8', '0.6', 'none', 'none', '0.4'); // 支流到底比斯
+
+    // 幼发拉底河
+    svgPath('M 44,28 Q 45,32 47,36 Q 49,40 52,44 Q 55,47 58,48', '#5a98b8', '0.9', 'none', 'none', '0.5');
+    // 底格里斯河
+    svgPath('M 48,26 Q 49,31 50,35 Q 52,39 54,43 Q 55,45 56,46', '#5a98b8', '0.9', 'none', 'none', '0.5');
+    // 黄河
+    svgPath('M 62,34 Q 65,30 68,28 Q 72,26 74,28 Q 76,30 76,34 Q 76,38 74,40 Q 72,42 70,42', '#c4a860', '0.9', 'none', 'none', '0.45');
+    // 长江
+    svgPath('M 66,46 Q 68,48 72,48 Q 76,48 78,50 Q 80,52 80,54', '#6ab898', '0.9', 'none', 'none', '0.45');
+
+    // 手绘山脉（小山峰符号 ^ 排列）
+    function drawMountains(x1, y1, x2, y2, peaks, color) {
+        let d = `M ${x1},${y1}`;
+        for (let i = 1; i <= peaks; i++) {
+            const t = i / peaks;
+            const mx = x1 + (x2 - x1) * t;
+            const my = y1 + (y2 - y1) * t;
+            const h = 2.2 + Math.sin(i * 2.3) * 1;
+            d += ` L ${mx - 1.2},${my} L ${mx},${my - h} L ${mx + 1.2},${my}`;
+        }
+        svgPath(d, color || '#888', '0.7', 'none', 'none', '0.45');
+    }
+    // 喜马拉雅
+    drawMountains(60, 56, 70, 58, 8, '#999');
+    drawMountains(60.5, 57, 69.5, 59, 7, '#bbb');
+    // 昆仑山
+    drawMountains(56, 48, 62, 49, 5, '#888');
+    // 西奈
+    drawMountains(28, 50, 32, 51, 3, '#888');
+    // 托罗斯山（土耳其南部）
+    drawMountains(40, 28, 48, 30, 5, '#888');
+
+    // 沙漠手绘纹理（不规则虚线区域轮廓）
+    svgPath('M 2,30 C 8,28 15,30 20,32 C 28,35 32,42 30,50 C 28,58 22,64 16,68 C 10,72 4,76 2,82', '#c8b878', '0.6', '4,3', 'none', '0.15'); // 撒哈拉轮廓
+    svgPath('M 40,18 C 44,16 48,18 52,20 C 55,24 54,30 50,34', '#c8b878', '0.5', '3,2', 'none', '0.12'); // 叙利亚沙漠
+    svgPath('M 60,22 C 64,20 68,22 70,26 C 70,30 66,34 62,34', '#c8b878', '0.5', '3,2', 'none', '0.12'); // 戈壁
+
+    // 绿洲/树林小点
+    svgEllipse(18, 46, 0.6, 0.5, '#6a9a5a', 'none', '0', '0.3');
+    svgEllipse(20, 44, 0.5, 0.4, '#6a9a5a', 'none', '0', '0.25');
+    svgEllipse(52, 38, 0.6, 0.5, '#6a9a5a', 'none', '0', '0.25'); // 巴比伦绿洲
+    svgEllipse(70, 44, 0.5, 0.4, '#6a9a5a', 'none', '0', '0.25'); // 江南树林
+
+    // 指南针（右下角手绘）
+    svgPath('M 88,86 L 90,80 L 92,86 L 90,92 Z', '#b8963a', '1', 'none', '#b8963a', '0.5'); // 外框
+    svgPath('M 88.5,86 L 90,81.5 L 91.5,86', '#f0e0d0', '0.5', 'none', '#f0e0d0', '0.6'); // 北指针
+    svgPath('M 88.5,86 L 90,90.5 L 91.5,86', '#8a6a30', '0.5', 'none', '#8a6a30', '0.5'); // 南指针
+    svgEllipse(90, 86, 3, 3, 'none', '#b8963a', '0.6', '0.4');
+    svgText(90, 96, 'N', '#b8963a', '2');
+
+    // 比例尺（左下角）
+    svgPath('M 4,90 L 18,90', '#5a4010', '1.2', 'none', 'none', '0.55');
+    svgPath('M 4,90 L 4,88 M 11,90 L 11,88 M 18,90 L 18,88', '#5a4010', '0.8', 'none', 'none', '0.55');
+    svgText(11, 94, '500 里', '#5a4010', '1.8');
+
+    // 地理文字标注（手写风格位置）
+    svgText(12, 16, '地中海', '#8ac4e8', '2.6');
+    svgText(25, 74, '尼罗河', '#8ac4e8', '2.2');
+    svgText(50, 36, '幼发拉底', '#8ac4e8', '2');
+    svgText(66, 30, '黄河', '#c4a860', '2.2');
+    svgText(72, 48, '长江', '#8ac4a8', '2.2');
+    svgText(54, 18, '里海', '#8ac4e8', '2');
+    svgText(64, 54, '喜马拉雅', '#bbb', '1.8');
+    svgText(33, 66, '红海', '#8ac4e8', '2');
+
+    // 绘制城市节点
+    for (const c of CITIES) {
+        const dot = document.createElement('div');
+        let state = 'upcoming';
+        if (c.id < cityIndex) state = 'completed';
+        else if (c.id === cityIndex) state = 'current';
+
+        dot.className = 'map-city-dot ' + state;
+        if (state === 'current') {
+            dot.classList.add('current-' + c.theme);
+        }
+        dot.style.left = c.mapX + '%';
+        dot.style.top = c.mapY + '%';
+        world.appendChild(dot);
+
+        const label = document.createElement('div');
+        label.className = 'map-city-label ' + state;
+        label.textContent = c.name;
+        label.style.left = c.mapX + '%';
+        label.style.top = c.mapY + '%';
+        world.appendChild(label);
+    }
+
+    const btn = document.getElementById('mapBtn');
+    if (cityIndex === 0) {
+        btn.textContent = '开始挑战';
+    } else if (cityIndex >= CITIES.length - 1) {
+        btn.textContent = '最终挑战';
+    } else {
+        btn.textContent = '前往下个城市';
+    }
+
+    document.getElementById('mapOverlay').classList.add('active');
+}
+
+function startCityFromMap() {
+    hideOverlays();
+    startBGM();
+    const city = getCity();
+    buildPath(city.shape + 1);
+    initLevel();
+}
+
+function initLevel() {
+    balls = [];
+    particles = [];
+    shot = null;
+    running = true;
+    slowTimer = 0;
+    const lvl = getLevel();
+
+    const maxC = Math.min(3 + lvl, COLORS.length);
+    const initial = 10 + lvl * 3;
+
+    // 特殊球出现概率（随关卡增加）
+    const specialChance = Math.min(0.08, 0.03 + lvl * 0.008);
+    const specialTypes = [SPECIAL.BOMB, SPECIAL.SLOW];
+
+    // 初始球链（从外圈到内圈排列）
+    const startArc = 0.04 * CFG.TOTAL_ARC;
+    for (let i = 0; i < initial; i++) {
+        const arc = startArc + i * CFG.BALL_SPACING_PX;
+        let c = randColor(maxC);
+        // 避免初始生成连续3个同色
+        if (i >= 2 && balls[i - 1].c === c && balls[i - 2].c === c) {
+            const others = [];
+            for (let j = 0; j < maxC; j++) if (j !== c) others.push(j);
+            c = others[randInt(others.length)];
+        }
+        const p = getPosByArc(arc);
+        let special = null;
+        // 不在开头和结尾放特殊球，避免连续特殊球
+        if (i > 2 && i < initial - 3 && Math.random() < specialChance) {
+            if (!balls[balls.length - 1]?.special) {
+                special = specialTypes[randInt(specialTypes.length)];
+            }
+        }
+        balls.push({ id: nextId++, arc, c, x: p.x, y: p.y, rot: Math.random() * Math.PI * 2, special });
+    }
+
+    resolveInitialMatches();
+
+    curColor = randColor(maxC);
+    nextColor = randColor(maxC);
+    updateHUD();
+}
+
+// ===================== 发射 =====================
+function getShooterPos() {
+    return {
+        x: CFG.FROG_X + Math.cos(angle) * CFG.SHOOTER_OFF,
+        y: CFG.FROG_Y + Math.sin(angle) * CFG.SHOOTER_OFF
+    };
+}
+
+function getRemainingColors() {
+    const set = new Set();
+    for (const b of balls) set.add(b.c);
+    return Array.from(set);
+}
+
+function pickShooterColor(maxC) {
+    const remaining = getRemainingColors();
+    if (remaining.length === 1) {
+        // 只剩一种颜色时，85%概率给该颜色
+        if (Math.random() < 0.85) return remaining[0];
+        // 否则给其他随机颜色（避免死锁）
+        const others = [];
+        for (let i = 0; i < maxC; i++) if (i !== remaining[0]) others.push(i);
+        return others.length ? others[randInt(others.length)] : remaining[0];
+    }
+    if (remaining.length === 2) {
+        // 只剩两种时，70%给数量较少的那种（帮助清理）
+        const cnt = {};
+        for (const b of balls) cnt[b.c] = (cnt[b.c] || 0) + 1;
+        const sorted = remaining.sort((a, b) => cnt[a] - cnt[b]);
+        if (Math.random() < 0.70) return sorted[0];
+        return sorted[1];
+    }
+    return randColor(maxC);
+}
+
+function shoot() {
+    if (!running || shot) return;
+    initAudio();
+    playSound('shoot');
+    const sp = getShooterPos();
+    shot = {
+        x: sp.x, y: sp.y,
+        vx: Math.cos(angle) * CFG.PROJ_SPEED,
+        vy: Math.sin(angle) * CFG.PROJ_SPEED,
+        c: curColor, r: CFG.BALL_R
+    };
+    const maxC = Math.min(3 + getLevel(), COLORS.length);
+    curColor = nextColor;
+    nextColor = pickShooterColor(maxC);
+}
+
+// ===================== 更新 =====================
+function update() {
+    if (!running) return;
+
+    // 减速效果
+    if (slowTimer > 0) slowTimer--;
+    const slowFactor = slowTimer > 0 ? 0.35 : 1;
+    const city = getCity();
+    const speed = CFG.BASE_SPEED_PX * (1 + cityIndex * 0.06) * city.speedMul * slowFactor;
+
+    // 移动球链
+    for (const b of balls) {
+        b.arc += speed;
+    }
+
+    // 弹性修正间距（插入后推开、消除后拉紧）
+    applyElasticForce(12);
+
+    // 强制压缩收尾：确保没有任何残余缝隙，同时防止过度重叠
+    for (let i = 1; i < balls.length; i++) {
+        const desired = balls[i-1].arc + CFG.BALL_SPACING_PX;
+        if (balls[i].arc > desired) {
+            balls[i].arc = desired;
+        } else if (balls[i].arc < desired - 0.5) {
+            balls[i].arc = desired - 0.5;
+        }
+    }
+
+    // 更新坐标和旋转（滚动效果），并触发滚动音效
+    let maxMove = 0;
+    for (const b of balls) {
+        const prevX = b.x, prevY = b.y;
+        const p = getPosByArc(b.arc);
+        b.x = p.x; b.y = p.y;
+        const moveDist = dist(prevX, prevY, b.x, b.y);
+        b.rot += moveDist / CFG.BALL_R;
+        if (moveDist > maxMove) maxMove = moveDist;
+    }
+    rollAccum += maxMove;
+    if (rollAccum > CFG.BALL_R * 1.2) {
+        rollAccum -= CFG.BALL_R * 1.2;
+        playRollSound();
+    }
+
+    // 检查终点（球到达终点则扣命，扣完3命才结束）
+    const head = balls[balls.length - 1];
+    if (head && head.arc >= CFG.TOTAL_ARC * 0.985) {
+        lives--;
+        playSound('loseLife');
+        if (lives <= 0) {
+            gameOver();
+            return;
+        }
+        // 扣除生命后清空当前球链重新生成
+        balls = [];
+        initLevel();
+        return;
+    }
+
+    // 更新发射球
+    updateShot();
+
+    // 更新粒子
+    particles = particles.filter(pt => {
+        pt.x += pt.vx; pt.y += pt.vy;
+        pt.vy += 0.1;
+        pt.life -= 0.025;
+        return pt.life > 0;
+    });
+
+    // 更新连击闪烁
+    if (comboFlash > 0) comboFlash -= 0.04;
+
+    // 更新飘字
+    floatTexts = floatTexts.filter(ft => {
+        ft.y += ft.vy;
+        ft.life -= 0.02;
+        return ft.life > 0;
+    });
+
+    // 过关检查
+    if (balls.length === 0) {
+        if (cityIndex >= CITIES.length - 1) {
+            victory();
+        } else {
+            levelComplete();
+        }
+    }
+
+    updateHUD();
+}
+
+function applyElasticForce(iterations) {
+    // 弹性物理：间距过小快速推开，间距过大缓慢拉紧（直接操作像素弧长）
+    for (let n = 0; n < iterations; n++) {
+        for (let i = 1; i < balls.length; i++) {
+            const gap = balls[i].arc - balls[i - 1].arc;
+            const diff = CFG.BALL_SPACING_PX - gap;
+            if (Math.abs(diff) < 0.5) continue;
+            const stiffness = diff > 0 ? 0.4 : 0.25;
+            balls[i].arc += diff * stiffness;
+        }
+    }
+}
+
+function updateShot() {
+    if (!shot) return;
+    shot.x += shot.vx;
+    shot.y += shot.vy;
+
+    if (shot.x < -50 || shot.x > CFG.W+50 || shot.y < -50 || shot.y > CFG.H+50) {
+        shot = null;
+        return;
+    }
+
+    // 与球链碰撞检测
+    let bestIdx = -1, bestD = Infinity;
+    for (let i = 0; i < balls.length; i++) {
+        const d = dist(shot.x, shot.y, balls[i].x, balls[i].y);
+        if (d < bestD) { bestD = d; bestIdx = i; }
+    }
+
+    if (bestIdx >= 0 && bestD < CFG.BALL_R * 2.2) {
+        handleHit(bestIdx);
+    }
+}
+
+function handleHit(idx) {
+    const b = balls[idx];
+    const pos = getPosByArc(b.arc);
+    const dir = getDirByArc(b.arc);
+    const dot = (shot.x - pos.x) * dir.x + (shot.y - pos.y) * dir.y;
+
+    // dot > 0: shot 在球的前方（更靠近终点）-> 插入到该球之后
+    // dot <= 0: shot 在球的后方（更靠近入口）-> 插入到该球之前
+    let insertIdx = dot > 0 ? idx + 1 : idx;
+
+    let insertArc;
+    if (insertIdx === 0) {
+        insertArc = balls[0].arc - CFG.BALL_SPACING_PX * 0.5;
+    } else if (insertIdx >= balls.length) {
+        insertArc = balls[balls.length - 1].arc + CFG.BALL_SPACING_PX * 0.5;
+    } else {
+        insertArc = (balls[insertIdx - 1].arc + balls[insertIdx].arc) / 2;
+    }
+    insertArc = Math.max(2, Math.min(CFG.TOTAL_ARC - 2, insertArc));
+
+    const p = getPosByArc(insertArc);
+    balls.splice(insertIdx, 0, { id: nextId++, arc: insertArc, c: shot.c, x: p.x, y: p.y, rot: Math.random() * Math.PI * 2, special: null });
+    shot = null;
+
+    playSound('hit');
+
+    // splice 后如果被击中的球在插入点之后，它的索引会 +1
+    const hitIdxAfterSplice = insertIdx <= idx ? idx + 1 : idx;
+
+    // 检查是否击中特殊球触发效果
+    if (b.special === SPECIAL.BOMB) {
+        triggerBomb(hitIdxAfterSplice);
+        return;
+    }
+    // SLOW 不再立即触发，只有在匹配消除时才触发
+
+    checkMatch(insertIdx);
+}
+
+function triggerBomb(idx) {
+    playSound('explode');
+    const target = balls[idx];
+    const bombRadius = CFG.BALL_R * 4.5;
+    let removed = 0;
+    for (let i = balls.length - 1; i >= 0; i--) {
+        const d = dist(balls[i].x, balls[i].y, target.x, target.y);
+        if (d < bombRadius) {
+            // 爆炸粒子
+            for (let j = 0; j < 5; j++) {
+                const a = Math.random() * Math.PI * 2;
+                const s = 2 + Math.random() * 4;
+                particles.push({
+                    x: balls[i].x, y: balls[i].y,
+                    vx: Math.cos(a) * s, vy: Math.sin(a) * s,
+                    color: COLORS[balls[i].c].l, life: 1, radius: 3 + Math.random() * 3,
+                    type: 'star', rot: Math.random() * Math.PI
+                });
+            }
+            balls.splice(i, 1);
+            removed++;
+        }
+    }
+    if (removed > 0) {
+        combo++;
+        score += removed * 150 * combo;
+        playSound('match');
+    }
+}
+
+function checkMatch(startIdx) {
+    if (startIdx < 0 || startIdx >= balls.length) return;
+    const c = balls[startIdx].c;
+    let left = startIdx, right = startIdx;
+    while (left > 0 && balls[left - 1].c === c) left--;
+    while (right < balls.length - 1 && balls[right + 1].c === c) right++;
+    const count = right - left + 1;
+
+    if (count >= CFG.MATCH_MIN) {
+        // 检查匹配范围内是否有冰冻球，有则触发减速
+        for (let i = left; i <= right; i++) {
+            if (balls[i].special === SPECIAL.SLOW) {
+                playSound('slow');
+                slowTimer = 300;
+                for (let j = 0; j < 8; j++) {
+                    const a = Math.random() * Math.PI * 2;
+                    const s = 1.5 + Math.random() * 2;
+                    particles.push({
+                        x: balls[i].x, y: balls[i].y,
+                        vx: Math.cos(a) * s, vy: Math.sin(a) * s,
+                        color: '#88ccff', life: 1, radius: 2 + Math.random() * 2,
+                        type: 'star', rot: Math.random() * Math.PI
+                    });
+                }
+                score += 50;
+                break;
+            }
+        }
+
+        // 生成爆炸粒子（星星 + 光晕 + 圆点）
+        for (let i = left; i <= right; i++) {
+            // 中心光晕
+            particles.push({
+                x: balls[i].x, y: balls[i].y,
+                vx: 0, vy: 0,
+                color: COLORS[c].l, life: 1, radius: 12,
+                type: 'glow'
+            });
+            for (let j = 0; j < 8; j++) {
+                const a = Math.random() * Math.PI * 2;
+                const s = 1.5 + Math.random() * 3.5;
+                particles.push({
+                    x: balls[i].x, y: balls[i].y,
+                    vx: Math.cos(a)*s, vy: Math.sin(a)*s,
+                    color: COLORS[c].l, life: 1, radius: 2 + Math.random()*3,
+                    type: 'star', rot: Math.random() * Math.PI
+                });
+            }
+            for (let j = 0; j < 4; j++) {
+                const a = Math.random() * Math.PI * 2;
+                const s = 3 + Math.random() * 5;
+                particles.push({
+                    x: balls[i].x, y: balls[i].y,
+                    vx: Math.cos(a)*s, vy: Math.sin(a)*s,
+                    color: '#fff', life: 0.8, radius: 1 + Math.random()*2,
+                    type: 'dot'
+                });
+            }
+        }
+
+        // 计分
+        combo++;
+        const pts = count * 100 * combo;
+        score += pts;
+
+        playSound(combo > 1 ? 'combo' : 'match');
+
+        // 得分飘字
+        const ptsText = '+' + pts;
+        floatTexts.push({
+            x: balls[left].x,
+            y: balls[left].y - 10,
+            text: ptsText,
+            color: '#fff',
+            life: 1,
+            vy: -1.2,
+            size: 14
+        });
+
+        // 连击视觉反馈
+        if (combo > 1) {
+            comboFlash = 1;
+            const cx = balls[left].x;
+            const cy = balls[left].y;
+            floatTexts.push({
+                x: cx, y: cy - 20,
+                text: 'Combo x' + combo,
+                color: '#ffd700',
+                life: 1,
+                vy: -1.5,
+                size: 18
+            });
+        }
+
+        // 移除匹配的球
+        balls.splice(left, count);
+
+        // 连锁消除：检查消除位置相邻的球是否同色
+        if (left < balls.length) {
+            checkMatch(left);
+        }
+    } else {
+        combo = 0;
+    }
+}
+
+function resolveInitialMatches() {
+    // 初始生成后自动消除所有连续同色（不计分，无连击）
+    let changed = true;
+    while (changed) {
+        changed = false;
+        let i = 0;
+        while (i < balls.length) {
+            let j = i + 1;
+            while (j < balls.length && balls[j].c === balls[i].c) j++;
+            const count = j - i;
+            if (count >= CFG.MATCH_MIN) {
+                for (let k = i; k < j; k++) {
+                    const bc = balls[k].c;
+                    particles.push({
+                        x: balls[k].x, y: balls[k].y,
+                        vx: 0, vy: 0,
+                        color: COLORS[bc].l, life: 1, radius: 10,
+                        type: 'glow'
+                    });
+                    for (let n = 0; n < 6; n++) {
+                        const a = Math.random() * Math.PI * 2;
+                        const s = 1.5 + Math.random() * 3;
+                        particles.push({
+                            x: balls[k].x, y: balls[k].y,
+                            vx: Math.cos(a) * s, vy: Math.sin(a) * s,
+                            color: COLORS[bc].l, life: 1, radius: 2 + Math.random() * 3,
+                            type: 'star', rot: Math.random() * Math.PI
+                        });
+                    }
+                }
+                balls.splice(i, count);
+                // 初始阶段直接压缩，不需要动画
+                if (balls.length > 0 && i < balls.length) {
+                    let baseArc = balls[i].arc;
+                    for (let k = i + 1; k < balls.length; k++) {
+                        baseArc += CFG.BALL_SPACING_PX;
+                        balls[k].arc = baseArc;
+                        const p = getPosByArc(balls[k].arc);
+                        balls[k].x = p.x; balls[k].y = p.y;
+                    }
+                }
+                changed = true;
+                break;
+            }
+            i = j;
+        }
+    }
+}
+
+function updateHUD() {
+    document.getElementById('scoreVal').textContent = score;
+    document.getElementById('comboVal').textContent = combo;
+    document.getElementById('levelVal').textContent = getCity().name;
+    document.getElementById('livesVal').textContent = '❤'.repeat(Math.max(0, lives));
+    document.getElementById('remainVal').textContent = balls.length;
+}
+
+// ===================== 渲染 =====================
+function draw() {
+    ctx.clearRect(0, 0, CFG.W, CFG.H);
+    drawBg();
+    drawPath();
+    drawHole();
+    drawBalls();
+    if (shot) drawShot();
+    drawShooter();
+    drawParticles();
+    drawGuide();
+
+    // 连击屏幕闪烁
+    if (comboFlash > 0) {
+        ctx.save();
+        ctx.globalAlpha = comboFlash * 0.18;
+        ctx.fillStyle = '#ffd700';
+        ctx.fillRect(0, 0, CFG.W, CFG.H);
+        ctx.restore();
+    }
+
+    // 飘字
+    for (const ft of floatTexts) {
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, ft.life);
+        ctx.fillStyle = ft.color;
+        ctx.font = `bold ${ft.size}px 'Segoe UI','Microsoft YaHei',sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.shadowColor = 'rgba(0,0,0,0.8)';
+        ctx.shadowBlur = 6;
+        ctx.fillText(ft.text, ft.x, ft.y);
+        ctx.restore();
+    }
+
+    // 菜单状态装饰动画
+    if (!running && balls.length === 0) {
+        const time = Date.now() / 1000;
+        for (let i = 0; i < 6; i++) {
+            const a = time * 0.5 + i * (Math.PI / 3);
+            const x = CFG.CX + Math.cos(a) * 220;
+            const y = CFG.CY + Math.sin(a) * 160;
+            drawBall(x, y, i % COLORS.length, 18, 1, 0);
+        }
+    }
+}
+
+function drawBg() {
+    const city = getCity();
+    switch (city.theme) {
+        case 'egypt': drawBgEgypt(); break;
+        case 'babylon': drawBgBabylon(); break;
+        case 'china': drawBgChina(); break;
+        default: drawBgEgypt(); break;
+    }
+}
+
+function drawBgEgypt() {
+    // ===== 埃及神庙迷宫入口：明亮沙漠风格 =====
+
+    // 1. 天空 — 明亮的沙漠天空（带一点埃及蓝）
+    const skyGrad = ctx.createLinearGradient(0, 0, 0, CFG.H * 0.5);
+    skyGrad.addColorStop(0, '#f5e6c8');
+    skyGrad.addColorStop(0.3, '#e8d5b0');
+    skyGrad.addColorStop(0.6, '#d4b896');
+    skyGrad.addColorStop(1, '#b89b78');
+    ctx.fillStyle = skyGrad;
+    ctx.fillRect(0, 0, CFG.W, CFG.H);
+
+    // 2. 远处金字塔轮廓（更大更醒目）
+    ctx.save();
+    ctx.globalAlpha = 0.6;
+    ctx.fillStyle = '#c4a87a';
+    // 左侧大金字塔
+    ctx.beginPath();
+    ctx.moveTo(10, 260);
+    ctx.lineTo(130, 40);
+    ctx.lineTo(250, 260);
+    ctx.closePath();
+    ctx.fill();
+    // 右侧大金字塔
+    ctx.beginPath();
+    ctx.moveTo(CFG.W - 250, 280);
+    ctx.lineTo(CFG.W - 120, 25);
+    ctx.lineTo(CFG.W - 10, 280);
+    ctx.closePath();
+    ctx.fill();
+    // 中间小金字塔
+    ctx.beginPath();
+    ctx.moveTo(180, 290);
+    ctx.lineTo(260, 110);
+    ctx.lineTo(340, 290);
+    ctx.closePath();
+    ctx.fill();
+    // 金字塔阴影面
+    ctx.fillStyle = '#a89060';
+    ctx.globalAlpha = 0.5;
+    ctx.beginPath();
+    ctx.moveTo(130, 40);
+    ctx.lineTo(250, 260);
+    ctx.lineTo(170, 260);
+    ctx.closePath();
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(CFG.W - 120, 25);
+    ctx.lineTo(CFG.W - 10, 280);
+    ctx.lineTo(CFG.W - 80, 280);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+
+    // 3. 方尖碑（更大更醒目）
+    ctx.save();
+    ctx.globalAlpha = 0.7;
+    ctx.fillStyle = '#a89068';
+    // 左方尖碑
+    ctx.beginPath();
+    ctx.moveTo(100, 320);
+    ctx.lineTo(120, 60);
+    ctx.lineTo(140, 320);
+    ctx.closePath();
+    ctx.fill();
+    // 右方尖碑
+    ctx.beginPath();
+    ctx.moveTo(CFG.W - 140, 330);
+    ctx.lineTo(CFG.W - 120, 50);
+    ctx.lineTo(CFG.W - 100, 330);
+    ctx.closePath();
+    ctx.fill();
+    // 方尖碑金色尖顶
+    ctx.fillStyle = '#e8c860';
+    ctx.globalAlpha = 0.9;
+    ctx.beginPath();
+    ctx.moveTo(100, 320);
+    ctx.lineTo(120, 60);
+    ctx.lineTo(140, 320);
+    ctx.closePath();
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(CFG.W - 140, 330);
+    ctx.lineTo(CFG.W - 120, 50);
+    ctx.lineTo(CFG.W - 100, 330);
+    ctx.closePath();
+    ctx.fill();
+    // 方尖碑上的埃及符文横纹
+    ctx.strokeStyle = '#7a6548';
+    ctx.lineWidth = 2;
+    ctx.globalAlpha = 0.5;
+    for (let i = 0; i < 6; i++) {
+        const yy = 100 + i * 35;
+        ctx.beginPath(); ctx.moveTo(105, yy); ctx.lineTo(135, yy); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(CFG.W - 135, yy); ctx.lineTo(CFG.W - 105, yy); ctx.stroke();
+    }
+    ctx.restore();
+
+    // 4. 神庙墙壁框架
+    ctx.fillStyle = '#c8b08a';
+    ctx.fillRect(0, 0, CFG.W, 70);
+    ctx.fillRect(0, 0, 70, CFG.H);
+    ctx.fillRect(CFG.W - 70, 0, 70, CFG.H);
+    ctx.fillRect(0, CFG.H - 50, CFG.W, 50);
+
+    // 5. 拱门内框
+    ctx.fillStyle = '#b8a078';
+    ctx.fillRect(70, 70, CFG.W - 140, CFG.H - 120);
+
+    // 6. 顶部大拱门
+    ctx.fillStyle = '#d8c8a0';
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(CFG.W, 0);
+    ctx.lineTo(CFG.W, 100);
+    ctx.quadraticCurveTo(CFG.W * 0.5, 190, 0, 100);
+    ctx.fill();
+
+    // 7. 光线照射
+    const lightGrad = ctx.createLinearGradient(CFG.CX, 0, CFG.CX, CFG.H * 0.7);
+    lightGrad.addColorStop(0, 'rgba(255, 250, 235, 0.45)');
+    lightGrad.addColorStop(0.25, 'rgba(255, 245, 220, 0.2)');
+    lightGrad.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = lightGrad;
+    ctx.fillRect(70, 0, CFG.W - 140, CFG.H);
+
+    // 8. 墙壁上的埃及蓝/绿松石装饰条纹
+    ctx.fillStyle = '#2e8b8b';
+    ctx.fillRect(0, 200, 70, 14);
+    ctx.fillRect(0, 400, 70, 14);
+    ctx.fillRect(0, 600, 70, 14);
+    ctx.fillRect(CFG.W - 70, 200, 70, 14);
+    ctx.fillRect(CFG.W - 70, 400, 70, 14);
+    ctx.fillRect(CFG.W - 70, 600, 70, 14);
+    ctx.fillStyle = '#d4a040';
+    ctx.fillRect(0, 216, 70, 5);
+    ctx.fillRect(0, 416, 70, 5);
+    ctx.fillRect(0, 616, 70, 5);
+    ctx.fillRect(CFG.W - 70, 216, 70, 5);
+    ctx.fillRect(CFG.W - 70, 416, 70, 5);
+    ctx.fillRect(CFG.W - 70, 616, 70, 5);
+
+    // 9. 墙壁上的巨大荷鲁斯之眼符号（醒目，不透明的绿松石色）
+    drawEyeOfHorus(35, 120, 28);
+    drawEyeOfHorus(35, 300, 55);
+    drawEyeOfHorus(35, 500, 28);
+    drawEyeOfHorus(CFG.W - 35, 120, 28);
+    drawEyeOfHorus(CFG.W - 35, 300, 55);
+    drawEyeOfHorus(CFG.W - 35, 500, 28);
+
+    // 10. 巨大的木乃伊石棺（两侧）
+    drawSarcophagus(110, CFG.H - 130, 70, 120);
+    drawSarcophagus(CFG.W - 110, CFG.H - 130, 70, 120);
+
+    // 11. 地面石砖（简化，只留 faint 同心圆暗示地面纹理）
+    ctx.save();
+    ctx.globalAlpha = 0.25;
+    ctx.strokeStyle = '#a89070';
+    ctx.lineWidth = 1.5;
+    for (let i = 0; i < 6; i++) {
+        const rr = 80 + i * 45;
+        ctx.beginPath();
+        ctx.arc(CFG.CX, CFG.CY, rr, 0, Math.PI * 2);
+        ctx.stroke();
+    }
+    ctx.restore();
+
+    // 12. 地面中心图腾圆盘
+    ctx.save();
+    ctx.globalAlpha = 0.6;
+    const discGrad = ctx.createRadialGradient(CFG.CX, CFG.CY, 40, CFG.CX, CFG.CY, 340);
+    discGrad.addColorStop(0, 'rgba(180, 155, 110, 0.5)');
+    discGrad.addColorStop(0.5, 'rgba(150, 125, 85, 0.55)');
+    discGrad.addColorStop(1, 'rgba(100, 85, 55, 0.3)');
+    ctx.fillStyle = discGrad;
+    ctx.beginPath();
+    ctx.arc(CFG.CX, CFG.CY, 310, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 0.75;
+    ctx.strokeStyle = '#8a7050';
+    ctx.lineWidth = 3.5;
+    ctx.beginPath();
+    ctx.arc(CFG.CX, CFG.CY, 305, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.strokeStyle = '#a89068';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.arc(CFG.CX, CFG.CY, 295, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+
+    // 13. 四角埃及纸莎草柱
+    drawPillar(60, 60, 38, 150);
+    drawPillar(CFG.W - 60, 60, 38, 150);
+    drawPillar(60, CFG.H - 60, 38, 150);
+    drawPillar(CFG.W - 60, CFG.H - 60, 38, 150);
+
+    // 14. 顶部/底部符文装饰带
+    drawRuneBand(0, 14, CFG.W, 28);
+    drawRuneBand(0, CFG.H - 42, CFG.W, 28);
+
+    // 15. 远处墙壁轮廓
+    ctx.save();
+    ctx.globalAlpha = 0.2;
+    ctx.fillStyle = '#a08b68';
+    ctx.fillRect(100, 120, 30, 200);
+    ctx.fillRect(110, 340, 25, 180);
+    ctx.fillRect(CFG.W - 130, 120, 30, 200);
+    ctx.fillRect(CFG.W - 135, 340, 25, 180);
+    ctx.restore();
+
+    // 16. 巨大狮身人面像（底部中央，更大更醒目）
+    drawSphinx(CFG.CX, CFG.H - 90, 1.4);
+
+    // 17. 阿努比斯（左侧和右侧各一个，站立守卫，更大）
+    drawAnubis(160, CFG.H - 140, 1.3, true);
+    drawAnubis(CFG.W - 160, CFG.H - 140, 1.3, false);
+
+    // 18. 木乃伊（角落站立，更大）
+    drawMummy(90, CFG.H - 160, 1.2);
+    drawMummy(CFG.W - 90, CFG.H - 160, 1.2);
+
+    // 19. 几乎取消暗角
+    const vg = ctx.createRadialGradient(CFG.CX, CFG.CY, 220, CFG.CX, CFG.CY, CFG.W * 0.55);
+    vg.addColorStop(0, 'rgba(0,0,0,0)');
+    vg.addColorStop(0.75, 'rgba(0,0,0,0.04)');
+    vg.addColorStop(1, 'rgba(0,0,0,0.12)');
+    ctx.fillStyle = vg;
+    ctx.fillRect(0, 0, CFG.W, CFG.H);
+
+    // 20. 浮动尘粒
+    ctx.fillStyle = 'rgba(255, 240, 200, 0.4)';
+    for (let i = 0; i < 45; i++) {
+        const sx = (i * 191 + 47) % CFG.W;
+        const sy = (i * 137 + 71) % CFG.H;
+        ctx.beginPath();
+        ctx.arc(sx, sy, (i % 4 === 0) ? 1.2 : 0.7, 0, Math.PI * 2);
+        ctx.fill();
+    }
+}
+
+function drawBgBabylon() {
+    // ===== 巴比伦空中花园：明亮水绿花园风格 =====
+    // 1. 天空 — 水绿-青蓝渐变
+    const skyGrad = ctx.createLinearGradient(0, 0, 0, CFG.H * 0.5);
+    skyGrad.addColorStop(0, '#c8f0e8');
+    skyGrad.addColorStop(0.3, '#a8e0d0');
+    skyGrad.addColorStop(0.6, '#88c8b8');
+    skyGrad.addColorStop(1, '#6aa890');
+    ctx.fillStyle = skyGrad;
+    ctx.fillRect(0, 0, CFG.W, CFG.H);
+
+    // 2. 远处 ziggurat 轮廓
+    ctx.save();
+    ctx.globalAlpha = 0.5;
+    ctx.fillStyle = '#5a8a70';
+    ctx.beginPath();
+    ctx.moveTo(30, 320); ctx.lineTo(80, 180); ctx.lineTo(130, 320); ctx.closePath(); ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(100, 340); ctx.lineTo(170, 140); ctx.lineTo(240, 340); ctx.closePath(); ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(CFG.W - 240, 340); ctx.lineTo(CFG.W - 170, 140); ctx.lineTo(CFG.W - 100, 340); ctx.closePath(); ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(CFG.W - 130, 320); ctx.lineTo(CFG.W - 80, 180); ctx.lineTo(CFG.W - 30, 320); ctx.closePath(); ctx.fill();
+    ctx.globalAlpha = 0.35;
+    ctx.fillStyle = '#4a7a60';
+    ctx.fillRect(60, 200, 120, 20); ctx.fillRect(120, 160, 120, 20); ctx.fillRect(180, 120, 120, 20);
+    ctx.fillRect(CFG.W - 180, 200, 120, 20); ctx.fillRect(CFG.W - 240, 160, 120, 20); ctx.fillRect(CFG.W - 300, 120, 120, 20);
+    ctx.restore();
+
+    // 3. 棕榈树剪影
+    ctx.save();
+    ctx.globalAlpha = 0.45;
+    ctx.fillStyle = '#3a7050';
+    for (const [tx, ty] of [[60, CFG.H - 40], [130, CFG.H - 35], [CFG.W - 130, CFG.H - 35], [CFG.W - 60, CFG.H - 40]]) {
+        ctx.beginPath(); ctx.moveTo(tx, ty); ctx.lineTo(tx - 5, ty - 70); ctx.lineTo(tx + 5, ty - 70); ctx.closePath(); ctx.fill();
+        for (let a = -0.6; a <= 0.6; a += 0.3) {
+            ctx.beginPath(); ctx.moveTo(tx, ty - 70); ctx.quadraticCurveTo(tx + Math.sin(a) * 40, ty - 90, tx + Math.sin(a) * 60, ty - 55); ctx.lineWidth = 3; ctx.strokeStyle = '#3a7050'; ctx.stroke();
+        }
+    }
+    ctx.restore();
+
+    // 4. 神庙墙壁框架（青绿色石质）
+    ctx.fillStyle = '#7a9a78';
+    ctx.fillRect(0, 0, CFG.W, 70);
+    ctx.fillRect(0, 0, 70, CFG.H);
+    ctx.fillRect(CFG.W - 70, 0, 70, CFG.H);
+    ctx.fillRect(0, CFG.H - 50, CFG.W, 50);
+
+    // 5. 拱门内框
+    ctx.fillStyle = '#6a8a68';
+    ctx.fillRect(70, 70, CFG.W - 140, CFG.H - 120);
+
+    // 6. 顶部大拱门
+    ctx.fillStyle = '#8aaa88';
+    ctx.beginPath();
+    ctx.moveTo(0, 0); ctx.lineTo(CFG.W, 0); ctx.lineTo(CFG.W, 100);
+    ctx.quadraticCurveTo(CFG.W * 0.5, 190, 0, 100);
+    ctx.fill();
+
+    // 7. 光线照射
+    const lightGrad = ctx.createLinearGradient(CFG.CX, 0, CFG.CX, CFG.H * 0.7);
+    lightGrad.addColorStop(0, 'rgba(220, 255, 240, 0.4)');
+    lightGrad.addColorStop(0.25, 'rgba(200, 245, 220, 0.18)');
+    lightGrad.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = lightGrad;
+    ctx.fillRect(70, 0, CFG.W - 140, CFG.H);
+
+    // 8. 墙壁装饰条纹（青金蓝+金）
+    ctx.fillStyle = '#1a6080';
+    ctx.fillRect(0, 200, 70, 14); ctx.fillRect(0, 400, 70, 14); ctx.fillRect(0, 600, 70, 14);
+    ctx.fillRect(CFG.W - 70, 200, 70, 14); ctx.fillRect(CFG.W - 70, 400, 70, 14); ctx.fillRect(CFG.W - 70, 600, 70, 14);
+    ctx.fillStyle = '#d4a040';
+    ctx.fillRect(0, 216, 70, 5); ctx.fillRect(0, 416, 70, 5); ctx.fillRect(0, 616, 70, 5);
+    ctx.fillRect(CFG.W - 70, 216, 70, 5); ctx.fillRect(CFG.W - 70, 416, 70, 5); ctx.fillRect(CFG.W - 70, 616, 70, 5);
+
+    // 9. 墙壁上的生命之花/植物纹饰（青绿色）
+    for (const [fx, fy, fs] of [[35, 120, 24], [35, 300, 48], [35, 500, 24], [CFG.W - 35, 120, 24], [CFG.W - 35, 300, 48], [CFG.W - 35, 500, 24]]) {
+        ctx.save(); ctx.translate(fx, fy); ctx.strokeStyle = '#2a8060'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(0, 0, fs * 0.4, 0, Math.PI * 2); ctx.stroke();
+        for (let a = 0; a < Math.PI * 2; a += Math.PI / 3) {
+            ctx.beginPath(); ctx.arc(Math.cos(a) * fs * 0.3, Math.sin(a) * fs * 0.3, fs * 0.25, 0, Math.PI * 2); ctx.stroke();
+        }
+        ctx.restore();
+    }
+
+    // 10. 水渠装饰（底部两侧）
+    ctx.save(); ctx.globalAlpha = 0.4;
+    ctx.fillStyle = '#3a8070';
+    ctx.fillRect(80, CFG.H - 120, 60, 50); ctx.fillRect(CFG.W - 140, CFG.H - 120, 60, 50);
+    ctx.fillStyle = '#2a6050';
+    ctx.fillRect(90, CFG.H - 110, 40, 30); ctx.fillRect(CFG.W - 130, CFG.H - 110, 40, 30);
+    ctx.restore();
+
+    // 11. 地面石砖
+    ctx.save(); ctx.globalAlpha = 0.25; ctx.strokeStyle = '#5a7a58'; ctx.lineWidth = 1.5;
+    for (let i = 0; i < 6; i++) { const rr = 80 + i * 45; ctx.beginPath(); ctx.arc(CFG.CX, CFG.CY, rr, 0, Math.PI * 2); ctx.stroke(); }
+    ctx.restore();
+
+    // 12. 地面中心圆盘
+    ctx.save(); ctx.globalAlpha = 0.6;
+    const discGrad = ctx.createRadialGradient(CFG.CX, CFG.CY, 40, CFG.CX, CFG.CY, 340);
+    discGrad.addColorStop(0, 'rgba(140, 180, 140, 0.5)');
+    discGrad.addColorStop(0.5, 'rgba(110, 150, 110, 0.55)');
+    discGrad.addColorStop(1, 'rgba(70, 100, 70, 0.3)');
+    ctx.fillStyle = discGrad;
+    ctx.beginPath(); ctx.arc(CFG.CX, CFG.CY, 310, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 0.75; ctx.strokeStyle = '#4a6a48'; ctx.lineWidth = 3.5;
+    ctx.beginPath(); ctx.arc(CFG.CX, CFG.CY, 305, 0, Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = '#6a8a68'; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.arc(CFG.CX, CFG.CY, 295, 0, Math.PI * 2); ctx.stroke();
+    ctx.restore();
+
+    // 13. 四角柱子（青绿色纸莎草柱）
+    drawBabylonPillar(60, 60, 38, 150);
+    drawBabylonPillar(CFG.W - 60, 60, 38, 150);
+    drawBabylonPillar(60, CFG.H - 60, 38, 150);
+    drawBabylonPillar(CFG.W - 60, CFG.H - 60, 38, 150);
+
+    // 14. 顶部/底部装饰带
+    drawBabylonBand(0, 14, CFG.W, 28);
+    drawBabylonBand(0, CFG.H - 42, CFG.W, 28);
+
+    // 15. 浮动花粉/光点
+    ctx.fillStyle = 'rgba(200, 255, 220, 0.45)';
+    for (let i = 0; i < 50; i++) {
+        const sx = (i * 191 + 47) % CFG.W; const sy = (i * 137 + 71) % CFG.H;
+        ctx.beginPath(); ctx.arc(sx, sy, (i % 4 === 0) ? 1.4 : 0.8, 0, Math.PI * 2); ctx.fill();
+    }
+
+    // 16. 微弱暗角
+    const vg = ctx.createRadialGradient(CFG.CX, CFG.CY, 220, CFG.CX, CFG.CY, CFG.W * 0.55);
+    vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(0.75, 'rgba(0,0,0,0.04)'); vg.addColorStop(1, 'rgba(0,0,0,0.1)');
+    ctx.fillStyle = vg; ctx.fillRect(0, 0, CFG.W, CFG.H);
+}
+
+function drawBabylonPillar(x, y, w, h) {
+    ctx.save(); ctx.translate(x, y);
+    ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(-w * 0.5 + 4, -h * 0.5 + 4, w, h);
+    ctx.fillStyle = '#6a8a68'; ctx.fillRect(-w * 0.5, -h * 0.5, w, h);
+    ctx.strokeStyle = '#4a6a48'; ctx.lineWidth = 2; ctx.strokeRect(-w * 0.5, -h * 0.5, w, h);
+    ctx.fillStyle = '#8aaa88'; for (let i = 0; i < 5; i++) { ctx.fillRect(-w * 0.5 + 4, -h * 0.5 + 12 + i * 26, w - 8, 4); }
+    ctx.fillStyle = '#3a7050'; ctx.beginPath(); ctx.arc(0, -h * 0.5 - 10, w * 0.5 + 4, Math.PI, 0); ctx.fill();
+    ctx.fillStyle = '#5a8a58'; ctx.beginPath(); ctx.arc(0, -h * 0.5 - 10, w * 0.5, Math.PI, 0); ctx.fill();
+    ctx.restore();
+}
+
+function drawBabylonBand(x, y, w, h) {
+    ctx.save(); ctx.translate(x + w * 0.5, y + h * 0.5);
+    ctx.fillStyle = '#5a8a58'; ctx.fillRect(-w * 0.5, -h * 0.5, w, h);
+    ctx.strokeStyle = '#3a7050'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(-w * 0.5, -h * 0.5 + 6); ctx.lineTo(w * 0.5, -h * 0.5 + 6); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-w * 0.5, h * 0.5 - 6); ctx.lineTo(w * 0.5, h * 0.5 - 6); ctx.stroke();
+    ctx.restore();
+}
+
+function drawBgChina() {
+    // ===== 中华长城：温暖夕阳红金风格 =====
+    // 1. 天空 — 夕阳红橙金渐变
+    const skyGrad = ctx.createLinearGradient(0, 0, 0, CFG.H * 0.5);
+    skyGrad.addColorStop(0, '#f8d8a8');
+    skyGrad.addColorStop(0.25, '#f0b070');
+    skyGrad.addColorStop(0.5, '#e08850');
+    skyGrad.addColorStop(1, '#a85838');
+    ctx.fillStyle = skyGrad;
+    ctx.fillRect(0, 0, CFG.W, CFG.H);
+
+    // 2. 远山剪影
+    ctx.save(); ctx.globalAlpha = 0.35;
+    ctx.fillStyle = '#8a5040';
+    ctx.beginPath(); ctx.moveTo(0, 350); ctx.lineTo(120, 200); ctx.lineTo(280, 380); ctx.lineTo(400, 180); ctx.lineTo(550, 360); ctx.lineTo(700, 210); ctx.lineTo(CFG.W, 340); ctx.lineTo(CFG.W, 400); ctx.lineTo(0, 400); ctx.closePath(); ctx.fill();
+    ctx.globalAlpha = 0.25; ctx.fillStyle = '#6a3830';
+    ctx.beginPath(); ctx.moveTo(0, 380); ctx.lineTo(180, 240); ctx.lineTo(350, 400); ctx.lineTo(500, 220); ctx.lineTo(680, 390); ctx.lineTo(CFG.W, 260); ctx.lineTo(CFG.W, 420); ctx.lineTo(0, 420); ctx.closePath(); ctx.fill();
+    ctx.restore();
+
+    // 3. 长城（背景蜿蜒）
+    ctx.save(); ctx.globalAlpha = 0.5; ctx.strokeStyle = '#7a5040'; ctx.lineWidth = 8;
+    ctx.beginPath(); ctx.moveTo(0, 280);
+    for (let i = 0; i <= CFG.W; i += 20) { ctx.lineTo(i, 280 + Math.sin(i * 0.015) * 30 + Math.cos(i * 0.008) * 15); }
+    ctx.stroke(); ctx.lineWidth = 4; ctx.strokeStyle = '#9a7060';
+    ctx.beginPath(); ctx.moveTo(0, 276);
+    for (let i = 0; i <= CFG.W; i += 20) { ctx.lineTo(i, 276 + Math.sin(i * 0.015) * 30 + Math.cos(i * 0.008) * 15); }
+    ctx.stroke();
+    // 长城垛口
+    ctx.fillStyle = '#7a5040'; ctx.globalAlpha = 0.45;
+    for (let i = 20; i < CFG.W; i += 35) {
+        const yy = 276 + Math.sin(i * 0.015) * 30 + Math.cos(i * 0.008) * 15;
+        ctx.fillRect(i, yy - 10, 18, 10);
+    }
+    ctx.restore();
+
+    // 4. 宝塔剪影
+    ctx.save(); ctx.globalAlpha = 0.4;
+    for (const [tx, scale] of [[100, 0.8], [CFG.W - 100, 0.9]]) {
+        ctx.save(); ctx.translate(tx, CFG.H - 60); ctx.scale(scale, scale);
+        ctx.fillStyle = '#5a3830';
+        for (let i = 0; i < 5; i++) {
+            const bw = 60 - i * 10; const by = -i * 35;
+            ctx.beginPath(); ctx.moveTo(-bw * 0.5, by); ctx.lineTo(-bw * 0.5 - 6, by - 10); ctx.lineTo(bw * 0.5 + 6, by - 10); ctx.lineTo(bw * 0.5, by); ctx.closePath(); ctx.fill();
+            ctx.fillRect(-bw * 0.5 + 4, by - 35, bw - 8, 25);
+        }
+        ctx.beginPath(); ctx.moveTo(-6, -175); ctx.lineTo(0, -200); ctx.lineTo(6, -175); ctx.closePath(); ctx.fill();
+        ctx.restore();
+    }
+    ctx.restore();
+
+    // 5. 神庙墙壁框架（暗红色砖墙）
+    ctx.fillStyle = '#8a4840';
+    ctx.fillRect(0, 0, CFG.W, 70); ctx.fillRect(0, 0, 70, CFG.H);
+    ctx.fillRect(CFG.W - 70, 0, 70, CFG.H); ctx.fillRect(0, CFG.H - 50, CFG.W, 50);
+
+    // 6. 拱门内框
+    ctx.fillStyle = '#7a3830';
+    ctx.fillRect(70, 70, CFG.W - 140, CFG.H - 120);
+
+    // 7. 顶部大拱门
+    ctx.fillStyle = '#9a5850';
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(CFG.W, 0); ctx.lineTo(CFG.W, 100);
+    ctx.quadraticCurveTo(CFG.W * 0.5, 190, 0, 100); ctx.fill();
+
+    // 8. 光线照射（暖金）
+    const lightGrad = ctx.createLinearGradient(CFG.CX, 0, CFG.CX, CFG.H * 0.7);
+    lightGrad.addColorStop(0, 'rgba(255, 240, 200, 0.45)');
+    lightGrad.addColorStop(0.25, 'rgba(255, 220, 170, 0.2)');
+    lightGrad.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = lightGrad; ctx.fillRect(70, 0, CFG.W - 140, CFG.H);
+
+    // 9. 墙壁装饰条纹（朱红+金）
+    ctx.fillStyle = '#a03020'; ctx.fillRect(0, 200, 70, 14); ctx.fillRect(0, 400, 70, 14); ctx.fillRect(0, 600, 70, 14);
+    ctx.fillRect(CFG.W - 70, 200, 70, 14); ctx.fillRect(CFG.W - 70, 400, 70, 14); ctx.fillRect(CFG.W - 70, 600, 70, 14);
+    ctx.fillStyle = '#d4a040'; ctx.fillRect(0, 216, 70, 5); ctx.fillRect(0, 416, 70, 5); ctx.fillRect(0, 616, 70, 5);
+    ctx.fillRect(CFG.W - 70, 216, 70, 5); ctx.fillRect(CFG.W - 70, 416, 70, 5); ctx.fillRect(CFG.W - 70, 616, 70, 5);
+
+    // 10. 墙壁上的云纹装饰
+    for (const [fx, fy, fs] of [[35, 120, 22], [35, 300, 50], [35, 500, 22], [CFG.W - 35, 120, 22], [CFG.W - 35, 300, 50], [CFG.W - 35, 500, 22]]) {
+        ctx.save(); ctx.translate(fx, fy); ctx.strokeStyle = '#c07050'; ctx.lineWidth = 2.5;
+        ctx.beginPath(); ctx.arc(-fs * 0.3, 0, fs * 0.35, 0, Math.PI * 2); ctx.stroke();
+        ctx.beginPath(); ctx.arc(fs * 0.3, 0, fs * 0.35, 0, Math.PI * 2); ctx.stroke();
+        ctx.beginPath(); ctx.arc(0, -fs * 0.15, fs * 0.4, 0, Math.PI * 2); ctx.stroke();
+        ctx.restore();
+    }
+
+    // 11. 地面石砖
+    ctx.save(); ctx.globalAlpha = 0.25; ctx.strokeStyle = '#8a5850'; ctx.lineWidth = 1.5;
+    for (let i = 0; i < 6; i++) { const rr = 80 + i * 45; ctx.beginPath(); ctx.arc(CFG.CX, CFG.CY, rr, 0, Math.PI * 2); ctx.stroke(); }
+    ctx.restore();
+
+    // 12. 地面中心圆盘
+    ctx.save(); ctx.globalAlpha = 0.6;
+    const discGrad = ctx.createRadialGradient(CFG.CX, CFG.CY, 40, CFG.CX, CFG.CY, 340);
+    discGrad.addColorStop(0, 'rgba(180, 130, 100, 0.5)');
+    discGrad.addColorStop(0.5, 'rgba(150, 100, 75, 0.55)');
+    discGrad.addColorStop(1, 'rgba(100, 60, 45, 0.3)');
+    ctx.fillStyle = discGrad; ctx.beginPath(); ctx.arc(CFG.CX, CFG.CY, 310, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 0.75; ctx.strokeStyle = '#8a5040'; ctx.lineWidth = 3.5;
+    ctx.beginPath(); ctx.arc(CFG.CX, CFG.CY, 305, 0, Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = '#a86858'; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.arc(CFG.CX, CFG.CY, 295, 0, Math.PI * 2); ctx.stroke();
+    ctx.restore();
+
+    // 13. 四角柱子（朱红盘龙柱）
+    drawChinaPillar(60, 60, 38, 150);
+    drawChinaPillar(CFG.W - 60, 60, 38, 150);
+    drawChinaPillar(60, CFG.H - 60, 38, 150);
+    drawChinaPillar(CFG.W - 60, CFG.H - 60, 38, 150);
+
+    // 14. 顶部/底部装饰带
+    drawChinaBand(0, 14, CFG.W, 28);
+    drawChinaBand(0, CFG.H - 42, CFG.W, 28);
+
+    // 15. 樱花花瓣（静态点）
+    ctx.fillStyle = 'rgba(255, 180, 190, 0.5)';
+    for (let i = 0; i < 40; i++) {
+        const sx = (i * 173 + 53) % CFG.W; const sy = (i * 149 + 83) % CFG.H;
+        ctx.beginPath(); ctx.ellipse(sx, sy, 3, 1.5, i * 0.5, 0, Math.PI * 2); ctx.fill();
+    }
+
+    // 16. 微弱暗角
+    const vg = ctx.createRadialGradient(CFG.CX, CFG.CY, 220, CFG.CX, CFG.CY, CFG.W * 0.55);
+    vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(0.75, 'rgba(0,0,0,0.04)'); vg.addColorStop(1, 'rgba(0,0,0,0.12)');
+    ctx.fillStyle = vg; ctx.fillRect(0, 0, CFG.W, CFG.H);
+}
+
+function drawChinaPillar(x, y, w, h) {
+    ctx.save(); ctx.translate(x, y);
+    ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(-w * 0.5 + 4, -h * 0.5 + 4, w, h);
+    ctx.fillStyle = '#8a3830'; ctx.fillRect(-w * 0.5, -h * 0.5, w, h);
+    ctx.strokeStyle = '#5a2018'; ctx.lineWidth = 2; ctx.strokeRect(-w * 0.5, -h * 0.5, w, h);
+    ctx.fillStyle = '#a85040'; for (let i = 0; i < 5; i++) { ctx.fillRect(-w * 0.5 + 4, -h * 0.5 + 12 + i * 26, w - 8, 4); }
+    ctx.fillStyle = '#d4a040'; ctx.beginPath(); ctx.arc(0, -h * 0.5 - 10, w * 0.5 + 4, Math.PI, 0); ctx.fill();
+    ctx.fillStyle = '#e8c060'; ctx.beginPath(); ctx.arc(0, -h * 0.5 - 10, w * 0.5, Math.PI, 0); ctx.fill();
+    ctx.restore();
+}
+
+function drawChinaBand(x, y, w, h) {
+    ctx.save(); ctx.translate(x + w * 0.5, y + h * 0.5);
+    ctx.fillStyle = '#7a3830'; ctx.fillRect(-w * 0.5, -h * 0.5, w, h);
+    ctx.strokeStyle = '#5a2018'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(-w * 0.5, -h * 0.5 + 6); ctx.lineTo(w * 0.5, -h * 0.5 + 6); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-w * 0.5, h * 0.5 - 6); ctx.lineTo(w * 0.5, h * 0.5 - 6); ctx.stroke();
+    ctx.restore();
+}
+
+function drawEyeOfHorus(x, y, s) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.strokeStyle = '#2e8b8b';
+    ctx.fillStyle = '#2e8b8b';
+    ctx.lineWidth = 2;
+    // 眼睛轮廓
+    ctx.beginPath();
+    ctx.moveTo(-s, 0);
+    ctx.quadraticCurveTo(0, -s * 0.6, s, 0);
+    ctx.quadraticCurveTo(0, s * 0.6, -s, 0);
+    ctx.stroke();
+    // 瞳孔
+    ctx.beginPath();
+    ctx.arc(0, 0, s * 0.35, 0, Math.PI * 2);
+    ctx.fill();
+    // 眼角线
+    ctx.beginPath();
+    ctx.moveTo(s, 0);
+    ctx.lineTo(s * 1.4, -s * 0.4);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(-s, 0);
+    ctx.lineTo(-s * 1.2, -s * 0.5);
+    ctx.stroke();
+    ctx.restore();
+}
+
+function drawSarcophagus(x, y, w, h) {
+    ctx.save();
+    ctx.translate(x, y);
+    // 石棺主体
+    ctx.fillStyle = '#8a7550';
+    ctx.fillRect(-w * 0.5, -h * 0.5, w, h);
+    // 绷带纹理（斜线）
+    ctx.strokeStyle = '#6b5538';
+    ctx.lineWidth = 1.5;
+    for (let i = -3; i <= 3; i++) {
+        ctx.beginPath();
+        ctx.moveTo(-w * 0.5 + 3, i * 8);
+        ctx.lineTo(w * 0.5 - 3, i * 8 + 6);
+        ctx.stroke();
+    }
+    // 人脸轮廓
+    ctx.fillStyle = '#a89068';
+    ctx.beginPath();
+    ctx.ellipse(0, -h * 0.15, w * 0.25, w * 0.3, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+}
+
+function drawPillar(x, y, w, h) {
+    ctx.save();
+    ctx.translate(x, y);
+
+    // 柱身阴影
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.fillRect(-w * 0.5 + 4, -h * 0.5 + 4, w, h);
+
+    // 柱身主体 — 明亮沙石色
+    const pg = ctx.createLinearGradient(-w * 0.5, 0, w * 0.5, 0);
+    pg.addColorStop(0, '#5a4830');
+    pg.addColorStop(0.25, '#7a6548');
+    pg.addColorStop(0.5, '#8a7558');
+    pg.addColorStop(0.75, '#7a6548');
+    pg.addColorStop(1, '#5a4830');
+    ctx.fillStyle = pg;
+    ctx.fillRect(-w * 0.5, -h * 0.5, w, h);
+
+    // 石砖横纹
+    ctx.strokeStyle = 'rgba(60, 48, 32, 0.5)';
+    ctx.lineWidth = 2;
+    for (let i = 1; i < 5; i++) {
+        const yy = -h * 0.5 + (h / 5) * i;
+        ctx.beginPath();
+        ctx.moveTo(-w * 0.5, yy);
+        ctx.lineTo(w * 0.5, yy);
+        ctx.stroke();
+    }
+
+    // 埃及纸莎草柱头（顶部像花朵展开）
+    ctx.fillStyle = '#6b5538';
+    // 中间花萼
+    ctx.beginPath();
+    ctx.ellipse(0, -h * 0.5 - 6, w * 0.35, 10, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // 两侧花瓣
+    ctx.beginPath();
+    ctx.ellipse(-w * 0.45, -h * 0.5 - 2, w * 0.25, 8, -0.4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(w * 0.45, -h * 0.5 - 2, w * 0.25, 8, 0.4, 0, Math.PI * 2);
+    ctx.fill();
+    // 柱头顶部圆盘
+    ctx.fillStyle = '#8a7050';
+    ctx.fillRect(-w * 0.5 - 6, -h * 0.5 - 14, w + 12, 6);
+    ctx.fillStyle = '#d4a040';
+    ctx.fillRect(-w * 0.5 - 6, -h * 0.5 - 14, w + 12, 2);
+
+    // 柱底装饰
+    ctx.fillStyle = '#6b5538';
+    ctx.fillRect(-w * 0.5 - 4, h * 0.5 - 2, w + 8, 10);
+    ctx.fillStyle = '#8a7050';
+    ctx.fillRect(-w * 0.5 - 4, h * 0.5 - 2, w + 8, 3);
+
+    ctx.restore();
+}
+
+function drawRuneBand(x, y, w, h) {
+    ctx.save();
+    ctx.globalAlpha = 0.18;
+    ctx.strokeStyle = '#6b532e';
+    ctx.lineWidth = 1.5;
+
+    // 外框
+    ctx.strokeRect(x + 20, y, w - 40, h);
+
+    // 符文图案（重复的三角与圆点）
+    const runeCount = 12;
+    const step = (w - 80) / runeCount;
+    for (let i = 0; i < runeCount; i++) {
+        const cx = x + 40 + step * i + step * 0.5;
+        const cy = y + h * 0.5;
+        // 小三角
+        ctx.beginPath();
+        ctx.moveTo(cx, cy - 5);
+        ctx.lineTo(cx - 4, cy + 4);
+        ctx.lineTo(cx + 4, cy + 4);
+        ctx.closePath();
+        ctx.stroke();
+        // 两侧竖线
+        ctx.beginPath();
+        ctx.moveTo(cx - 8, cy - 6);
+        ctx.lineTo(cx - 8, cy + 6);
+        ctx.moveTo(cx + 8, cy - 6);
+        ctx.lineTo(cx + 8, cy + 6);
+        ctx.stroke();
+    }
+    ctx.restore();
+}
+
+function drawSphinx(x, y, scale) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(scale, scale);
+    // 投影让狮身人面像浮出地面
+    ctx.fillStyle = 'rgba(30, 20, 10, 0.35)';
+    ctx.beginPath();
+    ctx.ellipse(5, 55, 100, 20, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // 狮身人面像趴伏在底部
+    // 狮子身体（横卧）
+    ctx.fillStyle = '#c8b090';
+    ctx.beginPath();
+    ctx.ellipse(0, 15, 90, 35, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // 身体阴影
+    ctx.fillStyle = '#a89068';
+    ctx.beginPath();
+    ctx.ellipse(0, 20, 85, 30, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // 前爪（伸展）
+    ctx.fillStyle = '#c4b08a';
+    ctx.beginPath();
+    ctx.roundRect(-70, 30, 35, 22, 6);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.roundRect(-25, 30, 35, 22, 6);
+    ctx.fill();
+    // 爪子阴影
+    ctx.fillStyle = '#a08b68';
+    ctx.beginPath();
+    ctx.roundRect(-70, 42, 35, 10, 4);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.roundRect(-25, 42, 35, 10, 4);
+    ctx.fill();
+    // 后爪
+    ctx.fillStyle = '#c4b08a';
+    ctx.beginPath();
+    ctx.roundRect(50, 32, 30, 20, 6);
+    ctx.fill();
+    // 尾巴
+    ctx.strokeStyle = '#b8a078';
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    ctx.moveTo(80, 15);
+    ctx.quadraticCurveTo(110, 0, 105, -20);
+    ctx.stroke();
+    ctx.fillStyle = '#c4b08a';
+    ctx.beginPath();
+    ctx.arc(105, -20, 5, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 人头（法老头像）
+    ctx.fillStyle = '#e8d8b8';
+    ctx.beginPath();
+    ctx.arc(0, -35, 32, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#5a4830';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    // 法老头巾（Nemes）
+    ctx.fillStyle = '#3a7a9a'; // 更亮的埃及蓝
+    ctx.beginPath();
+    ctx.moveTo(-34, -40);
+    ctx.quadraticCurveTo(0, -78, 34, -40);
+    ctx.lineTo(38, -10);
+    ctx.quadraticCurveTo(0, -25, -38, -10);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = '#d4a040';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    // 头巾金色条纹
+    ctx.strokeStyle = '#f0c040';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(-20, -65); ctx.lineTo(-15, -20); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(-5, -72); ctx.lineTo(-2, -22); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(10, -68); ctx.lineTo(12, -20); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(22, -58); ctx.lineTo(26, -18); ctx.stroke();
+    // 头巾下垂侧翼
+    ctx.fillStyle = '#3a7a9a';
+    ctx.beginPath();
+    ctx.moveTo(-32, -30);
+    ctx.lineTo(-50, 20);
+    ctx.lineTo(-30, 15);
+    ctx.closePath();
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(32, -30);
+    ctx.lineTo(50, 20);
+    ctx.lineTo(30, 15);
+    ctx.closePath();
+    ctx.fill();
+    // 脸部五官
+    ctx.fillStyle = '#d8c8a8';
+    ctx.beginPath();
+    ctx.ellipse(0, -30, 10, 12, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // 眼睛
+    ctx.fillStyle = '#2a2010';
+    ctx.beginPath();
+    ctx.ellipse(-8, -36, 4, 3, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(8, -36, 4, 3, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // 眼睛高光
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(-7, -37, 1.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(9, -37, 1.2, 0, Math.PI * 2);
+    ctx.fill();
+    // 眉毛
+    ctx.strokeStyle = '#1a5080';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(-14, -42); ctx.lineTo(-2, -40); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(2, -40); ctx.lineTo(14, -42); ctx.stroke();
+    // 鼻子
+    ctx.fillStyle = '#d8c8a8';
+    ctx.beginPath();
+    ctx.moveTo(-3, -32);
+    ctx.lineTo(3, -32);
+    ctx.lineTo(0, -24);
+    ctx.closePath();
+    ctx.fill();
+    // 嘴
+    ctx.strokeStyle = '#806848';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(-6, -18); ctx.lineTo(6, -18); ctx.stroke();
+    // 法老假胡子
+    ctx.fillStyle = '#3a7a9a';
+    ctx.beginPath();
+    ctx.ellipse(0, -5, 5, 12, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#f0c040';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(0, -15); ctx.lineTo(0, 5); ctx.stroke();
+
+    ctx.restore();
+}
+
+function drawAnubis(x, y, scale, facingRight) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(facingRight ? scale : -scale, scale);
+    // 阿努比斯：豺头人身，持权杖，站立
+    const bodyColor = '#5a5040';
+    const darkColor = '#3a3228';
+    const goldColor = '#f0c040';
+
+    // 底部投影
+    ctx.fillStyle = 'rgba(30, 20, 10, 0.3)';
+    ctx.beginPath();
+    ctx.ellipse(0, 82, 28, 8, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 腿部
+    ctx.fillStyle = bodyColor;
+    ctx.beginPath();
+    ctx.roundRect(-14, 20, 10, 55, 4);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.roundRect(4, 20, 10, 55, 4);
+    ctx.fill();
+    // 脚
+    ctx.fillStyle = darkColor;
+    ctx.beginPath();
+    ctx.ellipse(-9, 78, 7, 4, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(9, 78, 7, 4, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 身体（瘦长）
+    ctx.fillStyle = bodyColor;
+    ctx.beginPath();
+    ctx.moveTo(-18, -25);
+    ctx.lineTo(18, -25);
+    ctx.lineTo(14, 25);
+    ctx.lineTo(-14, 25);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = '#4a4030';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    // 胸口装饰
+    ctx.fillStyle = '#e8d060';
+    ctx.beginPath();
+    ctx.moveTo(0, -20);
+    ctx.lineTo(8, 10);
+    ctx.lineTo(-8, 10);
+    ctx.closePath();
+    ctx.fill();
+
+    // 埃及短裙（ Shendyt ）
+    ctx.fillStyle = '#f0e8c8';
+    ctx.beginPath();
+    ctx.moveTo(-16, 10);
+    ctx.lineTo(16, 10);
+    ctx.lineTo(20, 35);
+    ctx.lineTo(-20, 35);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = goldColor;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(-16, 10); ctx.lineTo(16, 10); ctx.stroke();
+
+    // 手臂
+    ctx.fillStyle = bodyColor;
+    ctx.beginPath();
+    ctx.roundRect(-28, -22, 10, 45, 4);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.roundRect(18, -22, 10, 45, 4);
+    ctx.fill();
+    // 手
+    ctx.fillStyle = '#4a3828';
+    ctx.beginPath();
+    ctx.arc(-23, 26, 5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(23, 26, 5, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 权杖（右手持）
+    ctx.strokeStyle = '#6a6050';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(23, 26);
+    ctx.lineTo(23, -70);
+    ctx.stroke();
+    // 权杖顶部（沃斯杖风格）
+    ctx.fillStyle = goldColor;
+    ctx.beginPath();
+    ctx.moveTo(23, -70);
+    ctx.lineTo(15, -82);
+    ctx.lineTo(23, -78);
+    ctx.lineTo(31, -82);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#a02020';
+    ctx.beginPath();
+    ctx.arc(23, -70, 4, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 豺狼头
+    ctx.fillStyle = '#4a3828';
+    // 头基座
+    ctx.beginPath();
+    ctx.ellipse(0, -40, 22, 26, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // 嘴部突出（长吻）
+    ctx.beginPath();
+    ctx.ellipse(12, -32, 18, 10, 0.2, 0, Math.PI * 2);
+    ctx.fill();
+    // 鼻子尖端
+    ctx.fillStyle = '#1a1008';
+    ctx.beginPath();
+    ctx.ellipse(28, -30, 4, 3, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // 耳朵（大，尖，竖直）
+    ctx.fillStyle = '#4a3828';
+    ctx.beginPath();
+    ctx.moveTo(-12, -58);
+    ctx.lineTo(-18, -100);
+    ctx.lineTo(-4, -62);
+    ctx.closePath();
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(8, -60);
+    ctx.lineTo(14, -102);
+    ctx.lineTo(18, -60);
+    ctx.closePath();
+    ctx.fill();
+    // 耳朵内侧
+    ctx.fillStyle = '#6a5848';
+    ctx.beginPath();
+    ctx.moveTo(-11, -60);
+    ctx.lineTo(-16, -90);
+    ctx.lineTo(-6, -62);
+    ctx.closePath();
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(10, -62);
+    ctx.lineTo(13, -92);
+    ctx.lineTo(16, -62);
+    ctx.closePath();
+    ctx.fill();
+    // 眼睛（金黄发光，凶狠）
+    ctx.fillStyle = '#ffe040';
+    ctx.beginPath();
+    ctx.ellipse(4, -44, 5, 4, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#1a0800';
+    ctx.beginPath();
+    ctx.arc(5, -44, 2.5, 0, Math.PI * 2);
+    ctx.fill();
+    // 眼睛发光高光
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(6, -45, 1, 0, Math.PI * 2);
+    ctx.fill();
+    // 项圈
+    ctx.strokeStyle = goldColor;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(-16, -18);
+    ctx.quadraticCurveTo(0, -8, 16, -18);
+    ctx.stroke();
+
+    ctx.restore();
+}
+
+function drawMummy(x, y, scale) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(scale, scale);
+    // 木乃伊：全身缠满绷带，只露眼睛，略微驼背
+    const bandageColor = '#e8dcc8';
+    const shadowColor = '#c8b8a0';
+
+    // 底部投影
+    ctx.fillStyle = 'rgba(30, 20, 10, 0.25)';
+    ctx.beginPath();
+    ctx.ellipse(0, 68, 22, 7, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 身体（圆柱形）
+    ctx.fillStyle = bandageColor;
+    ctx.beginPath();
+    ctx.roundRect(-18, -30, 36, 90, 10);
+    ctx.fill();
+    ctx.strokeStyle = '#8a7860';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    // 身体阴影
+    ctx.fillStyle = shadowColor;
+    ctx.beginPath();
+    ctx.roundRect(-14, -26, 28, 82, 8);
+    ctx.fill();
+
+    // 绷带纹理（横线）
+    ctx.strokeStyle = '#b8a888';
+    ctx.lineWidth = 1.5;
+    for (let i = 0; i < 10; i++) {
+        const yy = -20 + i * 10;
+        ctx.beginPath();
+        ctx.moveTo(-18, yy);
+        ctx.lineTo(18, yy);
+        ctx.stroke();
+    }
+    // 绷带纹理（斜线交叉）
+    ctx.strokeStyle = '#d8c8b0';
+    ctx.lineWidth = 1;
+    for (let i = -2; i <= 2; i++) {
+        ctx.beginPath();
+        ctx.moveTo(i * 12, -30);
+        ctx.lineTo(i * 12 + 8, 60);
+        ctx.stroke();
+    }
+
+    // 头部（绷带包裹的圆形）
+    ctx.fillStyle = bandageColor;
+    ctx.beginPath();
+    ctx.arc(0, -45, 20, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#8a7860';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    // 头部绷带横线
+    ctx.strokeStyle = '#b8a888';
+    ctx.lineWidth = 1.5;
+    for (let i = 0; i < 4; i++) {
+        const yy = -58 + i * 8;
+        ctx.beginPath();
+        ctx.moveTo(-18, yy);
+        ctx.lineTo(18, yy);
+        ctx.stroke();
+    }
+    // 眼睛（从绷带缝隙中露出来，绿色诡异发光）
+    ctx.fillStyle = '#0a0a0a';
+    ctx.beginPath();
+    ctx.ellipse(-7, -45, 4, 2.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(7, -45, 4, 2.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // 眼睛里的诡异绿光
+    ctx.fillStyle = '#60ff40';
+    ctx.beginPath();
+    ctx.ellipse(-6.5, -45.5, 2.2, 1.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(6.5, -45.5, 2.2, 1.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 脚
+    ctx.fillStyle = bandageColor;
+    ctx.beginPath();
+    ctx.ellipse(-8, 65, 8, 5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(8, 65, 8, 5, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
+}
+
+function drawPath() {
+    const city = getCity();
+    switch (city.theme) {
+        case 'egypt': drawPathEgypt(); break;
+        case 'babylon': drawPathBabylon(); break;
+        case 'china': drawPathChina(); break;
+        default: drawPathEgypt(); break;
+    }
+}
+
+function drawPathEgypt() {
+    // 轨道 = 石板地面中间凿出的一条沟渠，球嵌在沟里滚动
+    const grooveW = CFG.BALL_R * 0.92;
+    const bankW   = CFG.BALL_R * 2.8;
+    const gLeft = [], gRight = [];
+    const bLeft = [], bRight = [];
+    for (let i = 0; i < path.length; i += 2) {
+        const p = path[i];
+        const prev = path[Math.max(0, i - 2)];
+        const next = path[Math.min(path.length - 1, i + 2)];
+        const dx = next.x - prev.x;
+        const dy = next.y - prev.y;
+        const len = Math.hypot(dx, dy) || 1;
+        const nx = -dy / len;
+        const ny =  dx / len;
+        gLeft.push({ x: p.x + nx * grooveW, y: p.y + ny * grooveW });
+        gRight.push({ x: p.x - nx * grooveW, y: p.y - ny * grooveW });
+        bLeft.push({ x: p.x + nx * bankW,   y: p.y + ny * bankW });
+        bRight.push({ x: p.x - nx * bankW,  y: p.y - ny * bankW });
+    }
+    ctx.save();
+    // 轨道外发光（从明亮背景中浮现）
+    ctx.beginPath(); ctx.moveTo(bLeft[0].x, bLeft[0].y);
+    for (let i = 1; i < bLeft.length; i++) ctx.lineTo(bLeft[i].x, bLeft[i].y);
+    for (let i = bRight.length - 1; i >= 0; i--) ctx.lineTo(bRight[i].x, bRight[i].y);
+    ctx.closePath(); ctx.lineWidth = 10; ctx.strokeStyle = 'rgba(245, 230, 200, 0.35)'; ctx.stroke();
+    // 轨道底部阴影
+    ctx.beginPath(); ctx.moveTo(path[0].x, path[0].y);
+    for (let i = 1; i < path.length; i += 2) ctx.lineTo(path[i].x, path[i].y);
+    ctx.lineWidth = bankW * 2 + 20; ctx.strokeStyle = 'rgba(0, 0, 0, 0.7)';
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.stroke();
+    // 石质地面（极深褐色，确保从明亮背景中突显）
+    ctx.beginPath(); ctx.moveTo(bLeft[0].x, bLeft[0].y);
+    for (let i = 1; i < bLeft.length; i++) ctx.lineTo(bLeft[i].x, bLeft[i].y);
+    for (let i = bRight.length - 1; i >= 0; i--) ctx.lineTo(bRight[i].x, bRight[i].y);
+    ctx.closePath(); ctx.fillStyle = '#2a1808'; ctx.fill(); ctx.lineWidth = 2.5; ctx.strokeStyle = '#1a0e05'; ctx.stroke();
+    // 沟槽
+    ctx.beginPath(); ctx.moveTo(gLeft[0].x, gLeft[0].y);
+    for (let i = 1; i < gLeft.length; i++) ctx.lineTo(gLeft[i].x, gLeft[i].y);
+    for (let i = gRight.length - 1; i >= 0; i--) ctx.lineTo(gRight[i].x, gRight[i].y);
+    ctx.closePath();
+    const grooveGrad = ctx.createLinearGradient(CFG.CX - 200, CFG.CY - 200, CFG.CX + 200, CFG.CY + 200);
+    grooveGrad.addColorStop(0, '#0f0804'); grooveGrad.addColorStop(0.5, '#000000'); grooveGrad.addColorStop(1, '#0f0804');
+    ctx.fillStyle = grooveGrad; ctx.fill();
+    // 内侧深阴影
+    ctx.beginPath(); ctx.moveTo(gLeft[0].x, gLeft[0].y);
+    for (let i = 1; i < gLeft.length; i++) ctx.lineTo(gLeft[i].x, gLeft[i].y);
+    ctx.lineWidth = 16; ctx.strokeStyle = 'rgba(0,0,0,0.8)'; ctx.lineCap = 'round'; ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(gRight[0].x, gRight[0].y);
+    for (let i = 1; i < gRight.length; i++) ctx.lineTo(gRight[i].x, gRight[i].y);
+    ctx.lineWidth = 16; ctx.strokeStyle = 'rgba(0,0,0,0.65)'; ctx.stroke();
+    // 堤岸顶部石边（大幅加亮加粗，轮廓清晰）
+    ctx.beginPath(); ctx.moveTo(gLeft[0].x, gLeft[0].y);
+    for (let i = 1; i < gLeft.length; i++) ctx.lineTo(gLeft[i].x, gLeft[i].y);
+    ctx.lineWidth = 6; ctx.strokeStyle = '#fff8e8'; ctx.stroke(); ctx.lineWidth = 2.5; ctx.strokeStyle = '#2a1808'; ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(gRight[0].x, gRight[0].y);
+    for (let i = 1; i < gRight.length; i++) ctx.lineTo(gRight[i].x, gRight[i].y);
+    ctx.lineWidth = 6; ctx.strokeStyle = '#fff8e8'; ctx.stroke(); ctx.lineWidth = 2.5; ctx.strokeStyle = '#2a1808'; ctx.stroke();
+    // 中心槽底
+    ctx.beginPath(); ctx.moveTo(path[0].x, path[0].y);
+    for (let i = 1; i < path.length; i += 2) ctx.lineTo(path[i].x, path[i].y);
+    ctx.lineWidth = CFG.BALL_R * 1.15; ctx.strokeStyle = '#040201'; ctx.lineCap = 'round'; ctx.stroke();
+    ctx.restore();
+}
+
+function drawPathBabylon() {
+    // 空中花园水渠：青绿色苔藓石 + 深蓝水沟
+    const grooveW = CFG.BALL_R * 0.92;
+    const bankW   = CFG.BALL_R * 2.8;
+    const gLeft = [], gRight = [];
+    const bLeft = [], bRight = [];
+    for (let i = 0; i < path.length; i += 2) {
+        const p = path[i];
+        const prev = path[Math.max(0, i - 2)];
+        const next = path[Math.min(path.length - 1, i + 2)];
+        const dx = next.x - prev.x;
+        const dy = next.y - prev.y;
+        const len = Math.hypot(dx, dy) || 1;
+        const nx = -dy / len;
+        const ny =  dx / len;
+        gLeft.push({ x: p.x + nx * grooveW, y: p.y + ny * grooveW });
+        gRight.push({ x: p.x - nx * grooveW, y: p.y - ny * grooveW });
+        bLeft.push({ x: p.x + nx * bankW,   y: p.y + ny * bankW });
+        bRight.push({ x: p.x - nx * bankW,  y: p.y - ny * bankW });
+    }
+    ctx.save();
+    // 轨道外发光
+    ctx.beginPath(); ctx.moveTo(bLeft[0].x, bLeft[0].y);
+    for (let i = 1; i < bLeft.length; i++) ctx.lineTo(bLeft[i].x, bLeft[i].y);
+    for (let i = bRight.length - 1; i >= 0; i--) ctx.lineTo(bRight[i].x, bRight[i].y);
+    ctx.closePath(); ctx.lineWidth = 10; ctx.strokeStyle = 'rgba(220, 255, 240, 0.25)'; ctx.stroke();
+    // 轨道底部阴影
+    ctx.beginPath(); ctx.moveTo(path[0].x, path[0].y);
+    for (let i = 1; i < path.length; i += 2) ctx.lineTo(path[i].x, path[i].y);
+    ctx.lineWidth = bankW * 2 + 20; ctx.strokeStyle = 'rgba(0, 0, 0, 0.65)';
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.stroke();
+    // 地面（苔藓石绿色，极深）
+    ctx.beginPath(); ctx.moveTo(bLeft[0].x, bLeft[0].y);
+    for (let i = 1; i < bLeft.length; i++) ctx.lineTo(bLeft[i].x, bLeft[i].y);
+    for (let i = bRight.length - 1; i >= 0; i--) ctx.lineTo(bRight[i].x, bRight[i].y);
+    ctx.closePath(); ctx.fillStyle = '#142a10'; ctx.fill(); ctx.lineWidth = 2.5; ctx.strokeStyle = '#0a1808'; ctx.stroke();
+    // 水渠（深蓝绿色）
+    ctx.beginPath(); ctx.moveTo(gLeft[0].x, gLeft[0].y);
+    for (let i = 1; i < gLeft.length; i++) ctx.lineTo(gLeft[i].x, gLeft[i].y);
+    for (let i = gRight.length - 1; i >= 0; i--) ctx.lineTo(gRight[i].x, gRight[i].y);
+    ctx.closePath();
+    const grooveGrad = ctx.createLinearGradient(CFG.CX - 200, CFG.CY - 200, CFG.CX + 200, CFG.CY + 200);
+    grooveGrad.addColorStop(0, '#081810'); grooveGrad.addColorStop(0.5, '#000000'); grooveGrad.addColorStop(1, '#081810');
+    ctx.fillStyle = grooveGrad; ctx.fill();
+    // 内侧深阴影
+    ctx.beginPath(); ctx.moveTo(gLeft[0].x, gLeft[0].y);
+    for (let i = 1; i < gLeft.length; i++) ctx.lineTo(gLeft[i].x, gLeft[i].y);
+    ctx.lineWidth = 16; ctx.strokeStyle = 'rgba(0,0,0,0.75)'; ctx.lineCap = 'round'; ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(gRight[0].x, gRight[0].y);
+    for (let i = 1; i < gRight.length; i++) ctx.lineTo(gRight[i].x, gRight[i].y);
+    ctx.lineWidth = 16; ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.stroke();
+    // 堤岸顶部边（大幅加亮加粗，轮廓清晰）
+    ctx.beginPath(); ctx.moveTo(gLeft[0].x, gLeft[0].y);
+    for (let i = 1; i < gLeft.length; i++) ctx.lineTo(gLeft[i].x, gLeft[i].y);
+    ctx.lineWidth = 6; ctx.strokeStyle = '#d8f8c8'; ctx.stroke(); ctx.lineWidth = 2.5; ctx.strokeStyle = '#142a10'; ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(gRight[0].x, gRight[0].y);
+    for (let i = 1; i < gRight.length; i++) ctx.lineTo(gRight[i].x, gRight[i].y);
+    ctx.lineWidth = 6; ctx.strokeStyle = '#d8f8c8'; ctx.stroke(); ctx.lineWidth = 2.5; ctx.strokeStyle = '#142a10'; ctx.stroke();
+    // 中心水沟底
+    ctx.beginPath(); ctx.moveTo(path[0].x, path[0].y);
+    for (let i = 1; i < path.length; i += 2) ctx.lineTo(path[i].x, path[i].y);
+    ctx.lineWidth = CFG.BALL_R * 1.15; ctx.strokeStyle = '#040a06'; ctx.lineCap = 'round'; ctx.stroke();
+    ctx.restore();
+}
+
+function drawPathChina() {
+    // 长城城墙：灰色砖石 + 暗红沟槽
+    const grooveW = CFG.BALL_R * 0.92;
+    const bankW   = CFG.BALL_R * 2.8;
+    const gLeft = [], gRight = [];
+    const bLeft = [], bRight = [];
+    for (let i = 0; i < path.length; i += 2) {
+        const p = path[i];
+        const prev = path[Math.max(0, i - 2)];
+        const next = path[Math.min(path.length - 1, i + 2)];
+        const dx = next.x - prev.x;
+        const dy = next.y - prev.y;
+        const len = Math.hypot(dx, dy) || 1;
+        const nx = -dy / len;
+        const ny =  dx / len;
+        gLeft.push({ x: p.x + nx * grooveW, y: p.y + ny * grooveW });
+        gRight.push({ x: p.x - nx * grooveW, y: p.y - ny * grooveW });
+        bLeft.push({ x: p.x + nx * bankW,   y: p.y + ny * bankW });
+        bRight.push({ x: p.x - nx * bankW,  y: p.y - ny * bankW });
+    }
+    ctx.save();
+    // 轨道外发光
+    ctx.beginPath(); ctx.moveTo(bLeft[0].x, bLeft[0].y);
+    for (let i = 1; i < bLeft.length; i++) ctx.lineTo(bLeft[i].x, bLeft[i].y);
+    for (let i = bRight.length - 1; i >= 0; i--) ctx.lineTo(bRight[i].x, bRight[i].y);
+    ctx.closePath(); ctx.lineWidth = 10; ctx.strokeStyle = 'rgba(255, 220, 180, 0.25)'; ctx.stroke();
+    // 轨道底部阴影
+    ctx.beginPath(); ctx.moveTo(path[0].x, path[0].y);
+    for (let i = 1; i < path.length; i += 2) ctx.lineTo(path[i].x, path[i].y);
+    ctx.lineWidth = bankW * 2 + 20; ctx.strokeStyle = 'rgba(0, 0, 0, 0.65)';
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.stroke();
+    // 地面（灰砖，极深）
+    ctx.beginPath(); ctx.moveTo(bLeft[0].x, bLeft[0].y);
+    for (let i = 1; i < bLeft.length; i++) ctx.lineTo(bLeft[i].x, bLeft[i].y);
+    for (let i = bRight.length - 1; i >= 0; i--) ctx.lineTo(bRight[i].x, bRight[i].y);
+    ctx.closePath(); ctx.fillStyle = '#1e1410'; ctx.fill(); ctx.lineWidth = 2.5; ctx.strokeStyle = '#0f0a06'; ctx.stroke();
+    // 沟槽（暗红褐色）
+    ctx.beginPath(); ctx.moveTo(gLeft[0].x, gLeft[0].y);
+    for (let i = 1; i < gLeft.length; i++) ctx.lineTo(gLeft[i].x, gLeft[i].y);
+    for (let i = gRight.length - 1; i >= 0; i--) ctx.lineTo(gRight[i].x, gRight[i].y);
+    ctx.closePath();
+    const grooveGrad = ctx.createLinearGradient(CFG.CX - 200, CFG.CY - 200, CFG.CX + 200, CFG.CY + 200);
+    grooveGrad.addColorStop(0, '#180a04'); grooveGrad.addColorStop(0.5, '#000000'); grooveGrad.addColorStop(1, '#180a04');
+    ctx.fillStyle = grooveGrad; ctx.fill();
+    // 内侧深阴影
+    ctx.beginPath(); ctx.moveTo(gLeft[0].x, gLeft[0].y);
+    for (let i = 1; i < gLeft.length; i++) ctx.lineTo(gLeft[i].x, gLeft[i].y);
+    ctx.lineWidth = 16; ctx.strokeStyle = 'rgba(0,0,0,0.8)'; ctx.lineCap = 'round'; ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(gRight[0].x, gRight[0].y);
+    for (let i = 1; i < gRight.length; i++) ctx.lineTo(gRight[i].x, gRight[i].y);
+    ctx.lineWidth = 16; ctx.strokeStyle = 'rgba(0,0,0,0.65)'; ctx.stroke();
+    // 堤岸顶部边（大幅加亮加粗，轮廓清晰）
+    ctx.beginPath(); ctx.moveTo(gLeft[0].x, gLeft[0].y);
+    for (let i = 1; i < gLeft.length; i++) ctx.lineTo(gLeft[i].x, gLeft[i].y);
+    ctx.lineWidth = 6; ctx.strokeStyle = '#e8dcd4'; ctx.stroke(); ctx.lineWidth = 2.5; ctx.strokeStyle = '#1e1008'; ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(gRight[0].x, gRight[0].y);
+    for (let i = 1; i < gRight.length; i++) ctx.lineTo(gRight[i].x, gRight[i].y);
+    ctx.lineWidth = 6; ctx.strokeStyle = '#e8dcd4'; ctx.stroke(); ctx.lineWidth = 2.5; ctx.strokeStyle = '#1e1008'; ctx.stroke();
+    // 中心槽底
+    ctx.beginPath(); ctx.moveTo(path[0].x, path[0].y);
+    for (let i = 1; i < path.length; i += 2) ctx.lineTo(path[i].x, path[i].y);
+    ctx.lineWidth = CFG.BALL_R * 1.15; ctx.strokeStyle = '#060302'; ctx.lineCap = 'round'; ctx.stroke();
+    ctx.restore();
+}
+
+function drawHole() {
+    const ex = CFG.CX, ey = CFG.CY;
+    const t = Date.now() / 1000;
+
+    // 动画参数
+    const jawOpen = 0.6 + Math.sin(t * 2.5) * 0.22 + Math.sin(t * 1.7) * 0.13; // 嘴巴开合 0.25~0.95
+    const tongueY = Math.sin(t * 4.2) * 5;
+    const tongueX = Math.sin(t * 3.1) * 3;
+    const eyeGlow = 0.7 + Math.sin(t * 0.9) * 0.3; // 眼睛闪烁
+
+    // ===== 深渊背景（大圆，怪物从中探出） =====
+    const holeGrad = ctx.createRadialGradient(ex, ey, 10, ex, ey, 80);
+    holeGrad.addColorStop(0, '#000');
+    holeGrad.addColorStop(0.45, '#1a0505');
+    holeGrad.addColorStop(0.75, '#3a0a0a');
+    holeGrad.addColorStop(1, 'rgba(30, 5, 5, 0)');
+    ctx.fillStyle = holeGrad;
+    ctx.beginPath();
+    ctx.arc(ex, ey, 80, 0, Math.PI * 2);
+    ctx.fill();
+
+    // ===== 金色太阳光环（旋转） =====
+    ctx.save();
+    ctx.translate(ex, ey);
+    ctx.rotate(t * 0.3);
+    const sunAlpha = 0.25 + Math.sin(t * 0.8) * 0.08;
+    ctx.fillStyle = `rgba(220, 180, 60, ${sunAlpha})`;
+    for (let i = 0; i < 12; i++) {
+        const a = (i / 12) * Math.PI * 2;
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(a - 0.15) * 55, Math.sin(a - 0.15) * 55);
+        ctx.lineTo(Math.cos(a) * 78, Math.sin(a) * 78);
+        ctx.lineTo(Math.cos(a + 0.15) * 55, Math.sin(a + 0.15) * 55);
+        ctx.closePath();
+        ctx.fill();
+    }
+    ctx.restore();
+
+    // 内圈金色圆环
+    ctx.strokeStyle = `rgba(220, 180, 60, ${0.4 + Math.sin(t * 0.6) * 0.1})`;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(ex, ey, 52, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.strokeStyle = `rgba(220, 180, 60, ${0.2 + Math.sin(t * 0.6 + 1) * 0.05})`;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(ex, ey, 58, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // ===== 怪物头部轮廓（暗色，从深渊中探出） =====
+    ctx.fillStyle = '#1a0a0a';
+    ctx.beginPath();
+    ctx.ellipse(ex, ey - 5, 50, 46, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 头部顶部隆起（更有立体感）
+    const headTopGrad = ctx.createRadialGradient(ex - 10, ey - 25, 8, ex, ey - 20, 40);
+    headTopGrad.addColorStop(0, '#2a1515');
+    headTopGrad.addColorStop(1, '#1a0a0a');
+    ctx.fillStyle = headTopGrad;
+    ctx.beginPath();
+    ctx.ellipse(ex, ey - 20, 35, 28, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // ===== 头部鳞片纹理 =====
+    ctx.strokeStyle = 'rgba(80, 40, 40, 0.35)';
+    ctx.lineWidth = 1.2;
+    for (let i = 0; i < 10; i++) {
+        const a = (i / 10) * Math.PI * 2;
+        ctx.beginPath();
+        ctx.moveTo(ex + Math.cos(a) * 22, ey - 5 + Math.sin(a) * 20);
+        ctx.lineTo(ex + Math.cos(a) * 42, ey - 5 + Math.sin(a) * 38);
+        ctx.stroke();
+    }
+
+    // ===== 弯曲的角（左右各一） =====
+    // 左角
+    ctx.strokeStyle = '#3a2020';
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.moveTo(ex - 40, ey - 18);
+    ctx.quadraticCurveTo(ex - 65, ey - 35, ex - 58, ey - 62);
+    ctx.stroke();
+    ctx.fillStyle = '#4a2a2a';
+    ctx.beginPath();
+    ctx.moveTo(ex - 58, ey - 62);
+    ctx.lineTo(ex - 63, ey - 75);
+    ctx.lineTo(ex - 52, ey - 68);
+    ctx.closePath();
+    ctx.fill();
+    // 右角
+    ctx.strokeStyle = '#3a2020';
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.moveTo(ex + 40, ey - 18);
+    ctx.quadraticCurveTo(ex + 65, ey - 35, ex + 58, ey - 62);
+    ctx.stroke();
+    ctx.fillStyle = '#4a2a2a';
+    ctx.beginPath();
+    ctx.moveTo(ex + 58, ey - 62);
+    ctx.lineTo(ex + 63, ey - 75);
+    ctx.lineTo(ex + 52, ey - 68);
+    ctx.closePath();
+    ctx.fill();
+
+    // ===== 发红光的眼睛（凶恶，带闪烁） =====
+    // 左眼
+    const eyeGrad1 = ctx.createRadialGradient(ex - 20, ey - 30, 2, ex - 20, ey - 30, 14);
+    eyeGrad1.addColorStop(0, `rgba(255, ${Math.floor(40 + 30 * eyeGlow)}, ${Math.floor(40 + 30 * eyeGlow)}, ${eyeGlow})`);
+    eyeGrad1.addColorStop(0.4, `rgba(204, ${Math.floor(20 + 20 * eyeGlow)}, ${Math.floor(20 + 20 * eyeGlow)}, ${eyeGlow * 0.8})`);
+    eyeGrad1.addColorStop(1, 'rgba(100, 15, 15, 0)');
+    ctx.fillStyle = eyeGrad1;
+    ctx.beginPath();
+    ctx.ellipse(ex - 20, ey - 30, 12, 10, -0.15, 0, Math.PI * 2);
+    ctx.fill();
+    // 竖瞳
+    ctx.fillStyle = '#000';
+    ctx.beginPath();
+    ctx.ellipse(ex - 20, ey - 30, 3, 7, -0.15, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 右眼
+    const eyeGrad2 = ctx.createRadialGradient(ex + 20, ey - 30, 2, ex + 20, ey - 30, 14);
+    eyeGrad2.addColorStop(0, `rgba(255, ${Math.floor(40 + 30 * eyeGlow)}, ${Math.floor(40 + 30 * eyeGlow)}, ${eyeGlow})`);
+    eyeGrad2.addColorStop(0.4, `rgba(204, ${Math.floor(20 + 20 * eyeGlow)}, ${Math.floor(20 + 20 * eyeGlow)}, ${eyeGlow * 0.8})`);
+    eyeGrad2.addColorStop(1, 'rgba(100, 15, 15, 0)');
+    ctx.fillStyle = eyeGrad2;
+    ctx.beginPath();
+    ctx.ellipse(ex + 20, ey - 30, 12, 10, 0.15, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#000';
+    ctx.beginPath();
+    ctx.ellipse(ex + 20, ey - 30, 3, 7, 0.15, 0, Math.PI * 2);
+    ctx.fill();
+
+    // ===== 鼻子（两个扁平鼻孔） =====
+    ctx.fillStyle = '#2a1010';
+    ctx.beginPath();
+    ctx.ellipse(ex - 10, ey - 8, 5, 4, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(ex + 10, ey - 8, 5, 4, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // ===== 会动的撕裂大嘴巴 =====
+    const mouthW = 38;
+    const mouthH = 26 * jawOpen;
+    const mouthY = ey + 14 + (1 - jawOpen) * 8;
+
+    ctx.fillStyle = '#2a0505';
+    ctx.beginPath();
+    ctx.ellipse(ex, mouthY, mouthW, Math.max(4, mouthH), 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 口腔深处（黑洞）
+    const throatH = 16 * jawOpen;
+    const throatGrad = ctx.createRadialGradient(ex, mouthY + 4, 3, ex, mouthY + 4, 24);
+    throatGrad.addColorStop(0, '#000');
+    throatGrad.addColorStop(1, '#1a0202');
+    ctx.fillStyle = throatGrad;
+    ctx.beginPath();
+    ctx.ellipse(ex, mouthY + 4, 22, Math.max(3, throatH), 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // ===== 舌头（来回舔动） =====
+    if (jawOpen > 0.4) {
+        ctx.fillStyle = '#cc3333';
+        ctx.beginPath();
+        ctx.ellipse(ex + tongueX, mouthY + 6 + tongueY, 10, 5, tongueX * 0.05, 0, Math.PI * 2);
+        ctx.fill();
+        // 舌头高光
+        ctx.fillStyle = 'rgba(255, 150, 150, 0.4)';
+        ctx.beginPath();
+        ctx.ellipse(ex + tongueX + 2, mouthY + 4 + tongueY, 4, 2, 0, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    // ===== 上排尖牙（随嘴巴开合移动） =====
+    ctx.fillStyle = '#e0d8c0';
+    const upperTeethY = mouthY - mouthH + 2;
+    for (let i = -2; i <= 2; i++) {
+        const tx = ex + i * 11;
+        const tilt = i * 0.12;
+        const h = (8 + Math.abs(i) * 3) * jawOpen;
+        if (h < 2) continue;
+        ctx.save();
+        ctx.translate(tx, upperTeethY);
+        ctx.rotate(tilt);
+        ctx.beginPath();
+        ctx.moveTo(-4, 0);
+        ctx.lineTo(4, 0);
+        ctx.lineTo(0, h);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+    }
+
+    // ===== 下排尖牙（粗壮，向上生长） =====
+    ctx.fillStyle = '#e0d8c0';
+    const lowerTeethY = mouthY + mouthH - 2;
+    for (let i = -1.5; i <= 1.5; i += 1) {
+        const tx = ex + i * 13;
+        const tilt = i * 0.1;
+        const h = (10 + Math.abs(i) * 2) * jawOpen;
+        if (h < 2) continue;
+        ctx.save();
+        ctx.translate(tx, lowerTeethY);
+        ctx.rotate(tilt);
+        ctx.beginPath();
+        ctx.moveTo(-5, 0);
+        ctx.lineTo(5, 0);
+        ctx.lineTo(0, -h);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+    }
+
+    // ===== 嘴角撕裂伤口 =====
+    ctx.strokeStyle = 'rgba(140, 30, 30, 0.7)';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(ex - 36, mouthY);
+    ctx.quadraticCurveTo(ex - 48, mouthY - 4, ex - 52, mouthY - 10);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(ex + 36, mouthY);
+    ctx.quadraticCurveTo(ex + 48, mouthY - 4, ex + 52, mouthY - 10);
+    ctx.stroke();
+
+    // ===== 嘴部周围褶皱皮肤 =====
+    ctx.strokeStyle = 'rgba(60, 25, 25, 0.4)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(ex, mouthY - 4, 44, 0.1, Math.PI - 0.1);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(ex, mouthY, 48, 0.05, Math.PI - 0.05);
+    ctx.stroke();
+
+    // ===== 外圈危险光环 =====
+    ctx.strokeStyle = `rgba(220, 50, 30, ${0.3 + Math.sin(t * 3) * 0.1})`;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(ex, ey, 58, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.strokeStyle = `rgba(220, 50, 30, ${0.15 + Math.sin(t * 2.5) * 0.08})`;
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.arc(ex, ey, 64, 0, Math.PI * 2);
+    ctx.stroke();
+}
+
+function drawBallGlyph(cIdx, r) {
+    // 每种颜色独特的"石刻符文"，深色雕刻感
+    ctx.save();
+    const dark = 'rgba(0,0,0,0.35)';
+    const light = 'rgba(255,255,255,0.22)';
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    switch (cIdx % 6) {
+        case 0: // 红 — 螺旋纹
+            ctx.strokeStyle = dark;
+            ctx.lineWidth = r * 0.14;
+            ctx.beginPath();
+            for (let a = 0; a < Math.PI * 4; a += 0.2) {
+                const rr = r * 0.12 + a * r * 0.06;
+                const px = Math.cos(a) * rr;
+                const py = Math.sin(a) * rr;
+                if (a === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+            }
+            ctx.stroke();
+            ctx.strokeStyle = light;
+            ctx.lineWidth = r * 0.06;
+            ctx.stroke();
+            break;
+        case 1: // 蓝 — 波浪纹
+            ctx.strokeStyle = dark;
+            ctx.lineWidth = r * 0.13;
+            ctx.beginPath();
+            for (let i = -2; i <= 2; i++) {
+                const yy = i * r * 0.22;
+                ctx.moveTo(-r * 0.4, yy);
+                ctx.quadraticCurveTo(0, yy - r * 0.18, r * 0.4, yy);
+            }
+            ctx.stroke();
+            ctx.strokeStyle = light;
+            ctx.lineWidth = r * 0.05;
+            ctx.stroke();
+            break;
+        case 2: // 绿 — 三叶纹
+            ctx.strokeStyle = dark;
+            ctx.lineWidth = r * 0.14;
+            for (let i = 0; i < 3; i++) {
+                const a = (i / 3) * Math.PI * 2;
+                ctx.beginPath();
+                ctx.arc(Math.cos(a) * r * 0.22, Math.sin(a) * r * 0.22, r * 0.18, a - 1, a + 2.2);
+                ctx.stroke();
+            }
+            ctx.strokeStyle = light;
+            ctx.lineWidth = r * 0.06;
+            for (let i = 0; i < 3; i++) {
+                const a = (i / 3) * Math.PI * 2;
+                ctx.beginPath();
+                ctx.arc(Math.cos(a) * r * 0.22, Math.sin(a) * r * 0.22, r * 0.18, a - 1, a + 2.2);
+                ctx.stroke();
+            }
+            break;
+        case 3: // 黄 — 太阳放射纹
+            ctx.strokeStyle = dark;
+            ctx.lineWidth = r * 0.12;
+            for (let i = 0; i < 8; i++) {
+                const a = (i / 8) * Math.PI * 2;
+                ctx.beginPath();
+                ctx.moveTo(Math.cos(a) * r * 0.15, Math.sin(a) * r * 0.15);
+                ctx.lineTo(Math.cos(a) * r * 0.5, Math.sin(a) * r * 0.5);
+                ctx.stroke();
+            }
+            ctx.fillStyle = dark;
+            ctx.beginPath(); ctx.arc(0, 0, r * 0.12, 0, Math.PI * 2); ctx.fill();
+            ctx.strokeStyle = light;
+            ctx.lineWidth = r * 0.05;
+            for (let i = 0; i < 8; i++) {
+                const a = (i / 8) * Math.PI * 2;
+                ctx.beginPath();
+                ctx.moveTo(Math.cos(a) * r * 0.15, Math.sin(a) * r * 0.15);
+                ctx.lineTo(Math.cos(a) * r * 0.5, Math.sin(a) * r * 0.5);
+                ctx.stroke();
+            }
+            break;
+        case 4: // 紫 — 菱形网格
+            ctx.strokeStyle = dark;
+            ctx.lineWidth = r * 0.11;
+            for (let i = -1; i <= 1; i++) {
+                ctx.beginPath();
+                ctx.moveTo(0, i * r * 0.35 - r * 0.2);
+                ctx.lineTo(r * 0.25, i * r * 0.35);
+                ctx.lineTo(0, i * r * 0.35 + r * 0.2);
+                ctx.lineTo(-r * 0.25, i * r * 0.35);
+                ctx.closePath(); ctx.stroke();
+            }
+            ctx.strokeStyle = light;
+            ctx.lineWidth = r * 0.04;
+            for (let i = -1; i <= 1; i++) {
+                ctx.beginPath();
+                ctx.moveTo(0, i * r * 0.35 - r * 0.2);
+                ctx.lineTo(r * 0.25, i * r * 0.35);
+                ctx.lineTo(0, i * r * 0.35 + r * 0.2);
+                ctx.lineTo(-r * 0.25, i * r * 0.35);
+                ctx.closePath(); ctx.stroke();
+            }
+            break;
+        case 5: // 橙 — 火焰三角
+            ctx.strokeStyle = dark;
+            ctx.lineWidth = r * 0.13;
+            ctx.beginPath();
+            ctx.moveTo(0, -r * 0.45);
+            ctx.quadraticCurveTo(r * 0.35, -r * 0.1, 0, r * 0.35);
+            ctx.quadraticCurveTo(-r * 0.35, -r * 0.1, 0, -r * 0.45);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(0, -r * 0.25);
+            ctx.quadraticCurveTo(r * 0.2, 0, 0, r * 0.15);
+            ctx.quadraticCurveTo(-r * 0.2, 0, 0, -r * 0.25);
+            ctx.stroke();
+            ctx.strokeStyle = light;
+            ctx.lineWidth = r * 0.05;
+            ctx.stroke(); ctx.stroke();
+            break;
+    }
+    ctx.restore();
+}
+
+function drawBall(x, y, cIdx, r, alpha = 1, rot = 0, special = null) {
+    const col = COLORS[cIdx];
+    ctx.save();
+    ctx.globalAlpha = alpha;
+
+    // 特殊球外发光
+    if (special) {
+        const glowColor = special === SPECIAL.BOMB ? 'rgba(255,80,40,0.4)' : 'rgba(80,180,255,0.4)';
+        ctx.fillStyle = glowColor;
+        ctx.beginPath();
+        ctx.arc(x, y, r * 1.35, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    // 球体（跟随旋转）
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(rot);
+
+    // 更立体的径向渐变，模拟抛光的石刻球
+    const g = ctx.createRadialGradient(-r*0.35, -r*0.35, r*0.1, 0, 0, r);
+    g.addColorStop(0, col.l);
+    g.addColorStop(0.35, col.m);
+    g.addColorStop(0.75, col.d);
+    g.addColorStop(0.92, shadeColor(col.d, -20));
+    g.addColorStop(1, shadeColor(col.d, -40));
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(0, 0, r, 0, Math.PI*2);
+    ctx.fill();
+
+    // 内圈石刻边框（让球看起来像古老石珠）
+    ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+    ctx.lineWidth = r * 0.08;
+    ctx.beginPath();
+    ctx.arc(0, 0, r * 0.78, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+    ctx.lineWidth = r * 0.04;
+    ctx.beginPath();
+    ctx.arc(0, 0, r * 0.74, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // 中心符文图案（跟随球滚动）
+    drawBallGlyph(cIdx, r);
+
+    // 特殊球符号 — Canvas绘制，更醒目
+    if (special === SPECIAL.BOMB) {
+        // 炸弹：红色裂纹 + 闪烁核心
+        ctx.strokeStyle = 'rgba(255,60,20,0.9)';
+        ctx.lineWidth = r * 0.1;
+        ctx.lineCap = 'round';
+        for (let i = 0; i < 6; i++) {
+            const a = (i / 6) * Math.PI * 2;
+            ctx.beginPath();
+            ctx.moveTo(Math.cos(a) * r * 0.2, Math.sin(a) * r * 0.2);
+            ctx.lineTo(Math.cos(a) * r * 0.65, Math.sin(a) * r * 0.65);
+            ctx.stroke();
+            // 分支裂纹
+            ctx.beginPath();
+            ctx.moveTo(Math.cos(a) * r * 0.5, Math.sin(a) * r * 0.5);
+            ctx.lineTo(Math.cos(a + 0.35) * r * 0.7, Math.sin(a + 0.35) * r * 0.7);
+            ctx.stroke();
+        }
+        // 中心核心
+        ctx.fillStyle = 'rgba(255,40,0,0.9)';
+        ctx.beginPath(); ctx.arc(0, 0, r * 0.22, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#fff';
+        ctx.beginPath(); ctx.arc(0, 0, r * 0.1, 0, Math.PI * 2); ctx.fill();
+    } else if (special === SPECIAL.SLOW) {
+        // 减速：冰晶雪花
+        ctx.strokeStyle = 'rgba(100,200,255,0.9)';
+        ctx.lineWidth = r * 0.08;
+        ctx.lineCap = 'round';
+        for (let i = 0; i < 6; i++) {
+            const a = (i / 6) * Math.PI * 2;
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(Math.cos(a) * r * 0.6, Math.sin(a) * r * 0.6);
+            ctx.stroke();
+            // 小分叉
+            ctx.beginPath();
+            ctx.moveTo(Math.cos(a) * r * 0.45, Math.sin(a) * r * 0.45);
+            ctx.lineTo(Math.cos(a - 0.35) * r * 0.6, Math.sin(a - 0.35) * r * 0.6);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(Math.cos(a) * r * 0.45, Math.sin(a) * r * 0.45);
+            ctx.lineTo(Math.cos(a + 0.35) * r * 0.6, Math.sin(a + 0.35) * r * 0.6);
+            ctx.stroke();
+        }
+        // 中心六边形
+        ctx.fillStyle = 'rgba(120,210,255,0.8)';
+        ctx.beginPath();
+        for (let i = 0; i < 6; i++) {
+            const a = (i / 6) * Math.PI * 2;
+            if (i === 0) ctx.moveTo(Math.cos(a) * r * 0.18, Math.sin(a) * r * 0.18);
+            else ctx.lineTo(Math.cos(a) * r * 0.18, Math.sin(a) * r * 0.18);
+        }
+        ctx.closePath(); ctx.fill();
+    }
+
+    // 滚动纹理暗部
+    ctx.fillStyle = 'rgba(0,0,0,0.18)';
+    ctx.beginPath();
+    ctx.arc(-r*0.35, r*0.25, r*0.22, 0, Math.PI*2);
+    ctx.fill();
+
+    // 滚动纹理亮部
+    ctx.fillStyle = 'rgba(255,255,255,0.28)';
+    ctx.beginPath();
+    ctx.arc(r*0.35, -r*0.15, r*0.18, 0, Math.PI*2);
+    ctx.fill();
+
+    ctx.restore();
+
+    // 外部高光（固定光源，不随球旋转）
+    ctx.fillStyle = 'rgba(255,255,255,0.22)';
+    ctx.beginPath();
+    ctx.arc(x - r*0.3, y - r*0.3, r*0.28, 0, Math.PI*2);
+    ctx.fill();
+
+    // 边缘反光
+    ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(x, y, r * 0.92, -Math.PI * 0.8, -Math.PI * 0.2);
+    ctx.stroke();
+
+    ctx.restore();
+}
+
+function drawBalls() {
+    for (const b of balls) {
+        drawBall(b.x, b.y, b.c, CFG.BALL_R, 1, b.rot, b.special);
+    }
+}
+
+function drawShot() {
+    if (!shot) return;
+    drawBall(shot.x, shot.y, shot.c, shot.r);
+    ctx.fillStyle = COLORS[shot.c].m + '20';
+    ctx.beginPath();
+    ctx.arc(shot.x - shot.vx*0.3, shot.y - shot.vy*0.3, shot.r*0.9, 0, Math.PI*2);
+    ctx.fill();
+}
+
+function drawShooter() {
+    const city = getCity();
+    switch (city.shooter) {
+        case 'frog': drawFrog(); break;
+        case 'lion': drawLion(); break;
+        case 'dragon': drawDragon(); break;
+        default: drawFrog(); break;
+    }
+}
+
+function drawFrog() {
+    ctx.save();
+    ctx.translate(CFG.FROG_X, CFG.FROG_Y);
+    ctx.rotate(angle + Math.PI/2);
+
+    // ===== 高质感祖玛青蛙：多层渐变阴影、浮雕纹理、立体宝石 =====
+
+    // 1. 贴地阴影（柔和扩散）
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.beginPath();
+    ctx.ellipse(0, 16, 66, 50, 0, 0, Math.PI*2);
+    ctx.fill();
+
+    // 2. 后腿（左）— 多层渐变制造圆柱体积感
+    const legLGrad = ctx.createRadialGradient(-52, 16, 4, -48, 22, 28);
+    legLGrad.addColorStop(0, '#7cb342');
+    legLGrad.addColorStop(0.6, '#558b2f');
+    legLGrad.addColorStop(1, '#33691e');
+    ctx.fillStyle = legLGrad;
+    ctx.beginPath();
+    ctx.ellipse(-48, 24, 28, 22, -0.5, 0, Math.PI*2);
+    ctx.fill();
+    ctx.strokeStyle = '#1b5e20';
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+    // 后腿高光
+    ctx.fillStyle = 'rgba(255,255,255,0.15)';
+    ctx.beginPath();
+    ctx.ellipse(-44, 18, 14, 8, -0.5, 0, Math.PI*2);
+    ctx.fill();
+    // 后脚掌
+    const footLGrad = ctx.createRadialGradient(-60, 10, 2, -58, 12, 14);
+    footLGrad.addColorStop(0, '#8bc34a');
+    footLGrad.addColorStop(1, '#33691e');
+    ctx.fillStyle = footLGrad;
+    ctx.beginPath();
+    ctx.ellipse(-60, 12, 15, 12, -0.3, 0, Math.PI*2);
+    ctx.fill();
+    ctx.strokeStyle = '#1b5e20';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    // 后脚爪（圆点，带高光）
+    for (let i = 0; i < 3; i++) {
+        const cx = -68 - i*4;
+        const cy = 16 + i*3;
+        ctx.fillStyle = '#aed581';
+        ctx.beginPath(); ctx.arc(cx, cy, 4.5, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#33691e';
+        ctx.beginPath(); ctx.arc(cx+1, cy+1, 4.5, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#c5e1a5';
+        ctx.beginPath(); ctx.arc(cx-0.5, cy-0.5, 3.5, 0, Math.PI*2); ctx.fill();
+    }
+
+    // 3. 后腿（右）— 镜像
+    const legRGrad = ctx.createRadialGradient(52, 16, 4, 48, 22, 28);
+    legRGrad.addColorStop(0, '#7cb342');
+    legRGrad.addColorStop(0.6, '#558b2f');
+    legRGrad.addColorStop(1, '#33691e');
+    ctx.fillStyle = legRGrad;
+    ctx.beginPath();
+    ctx.ellipse(48, 24, 28, 22, 0.5, 0, Math.PI*2);
+    ctx.fill();
+    ctx.strokeStyle = '#1b5e20';
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,0.15)';
+    ctx.beginPath();
+    ctx.ellipse(44, 18, 14, 8, 0.5, 0, Math.PI*2);
+    ctx.fill();
+    const footRGrad = ctx.createRadialGradient(60, 10, 2, 58, 12, 14);
+    footRGrad.addColorStop(0, '#8bc34a');
+    footRGrad.addColorStop(1, '#33691e');
+    ctx.fillStyle = footRGrad;
+    ctx.beginPath();
+    ctx.ellipse(60, 12, 15, 12, 0.3, 0, Math.PI*2);
+    ctx.fill();
+    ctx.strokeStyle = '#1b5e20';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    for (let i = 0; i < 3; i++) {
+        const cx = 68 + i*4;
+        const cy = 16 + i*3;
+        ctx.fillStyle = '#aed581';
+        ctx.beginPath(); ctx.arc(cx, cy, 4.5, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#33691e';
+        ctx.beginPath(); ctx.arc(cx-1, cy+1, 4.5, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#c5e1a5';
+        ctx.beginPath(); ctx.arc(cx+0.5, cy-0.5, 3.5, 0, Math.PI*2); ctx.fill();
+    }
+
+    // 4. 身体 — 大体积径向渐变 + 肚皮高光
+    const bodyGrad = ctx.createRadialGradient(-14, -2, 12, 0, 8, 60);
+    bodyGrad.addColorStop(0, '#dcedc8');
+    bodyGrad.addColorStop(0.3, '#c5e1a5');
+    bodyGrad.addColorStop(0.6, '#aed581');
+    bodyGrad.addColorStop(0.85, '#8bc34a');
+    bodyGrad.addColorStop(1, '#689f38');
+    ctx.fillStyle = bodyGrad;
+    ctx.beginPath();
+    ctx.ellipse(0, 10, 54, 44, 0, 0, Math.PI*2);
+    ctx.fill();
+    // 身体深色描边（让轮廓清晰）
+    ctx.strokeStyle = '#1b5e20';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    // 身体侧腹阴影（增加浑圆感）
+    ctx.fillStyle = 'rgba(0,0,0,0.12)';
+    ctx.beginPath();
+    ctx.ellipse(-36, 12, 14, 22, 0.3, 0, Math.PI*2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(36, 12, 14, 22, -0.3, 0, Math.PI*2);
+    ctx.fill();
+    // 肚皮高光
+    ctx.fillStyle = 'rgba(255,255,255,0.25)';
+    ctx.beginPath();
+    ctx.ellipse(0, 18, 28, 18, 0, 0, Math.PI*2);
+    ctx.fill();
+
+    // 身体两侧浮雕卷曲纹（有明暗的立体感）
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,0.3)';
+    ctx.shadowBlur = 3;
+    ctx.shadowOffsetX = 1;
+    ctx.strokeStyle = '#1b5e20';
+    ctx.lineWidth = 4;
+    ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.arc(-48, -2, 16, -0.3, 1.3, true); ctx.stroke();
+    ctx.beginPath(); ctx.arc(-54, 4, 9, 0, 1.5, false); ctx.stroke();
+    ctx.beginPath(); ctx.arc(48, -2, 16, Math.PI-1.3, Math.PI+0.3, false); ctx.stroke();
+    ctx.beginPath(); ctx.arc(54, 4, 9, Math.PI-1.5, Math.PI, true); ctx.stroke();
+    ctx.restore();
+    // 卷曲纹内侧高光
+    ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(-48, -2, 16, -0.3, 1.3, true); ctx.stroke();
+    ctx.beginPath(); ctx.arc(48, -2, 16, Math.PI-1.3, Math.PI+0.3, false); ctx.stroke();
+
+    // 5. 头部 — 更宽大，多层渐变 + 脸颊鼓出
+    const headGrad = ctx.createRadialGradient(-10, -28, 15, 0, -30, 56);
+    headGrad.addColorStop(0, '#e8f5e9');
+    headGrad.addColorStop(0.25, '#dcedc8');
+    headGrad.addColorStop(0.5, '#c5e1a5');
+    headGrad.addColorStop(0.75, '#aed581');
+    headGrad.addColorStop(1, '#7cb342');
+    ctx.fillStyle = headGrad;
+    ctx.beginPath();
+    ctx.ellipse(0, -28, 54, 46, 0, 0, Math.PI*2);
+    ctx.fill();
+    ctx.strokeStyle = '#1b5e20';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    // 脸颊鼓出高光（参考图饱满的腮帮子）
+    ctx.fillStyle = 'rgba(255,255,255,0.22)';
+    ctx.beginPath();
+    ctx.ellipse(-28, -20, 18, 14, -0.3, 0, Math.PI*2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(28, -20, 18, 14, 0.3, 0, Math.PI*2);
+    ctx.fill();
+
+    // 6. 额头图腾 — 先刻凹槽再填色，制造浮雕感
+    // 凹槽底（深色阴影）
+    ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+    ctx.lineWidth = 5;
+    ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(0, -62); ctx.lineTo(0, -36); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-18, -56); ctx.quadraticCurveTo(-8, -46, -18, -34); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(18, -56); ctx.quadraticCurveTo(8, -46, 18, -34); ctx.stroke();
+    // 图腾亮色线（浮雕凸起感）
+    ctx.strokeStyle = '#1b5e20';
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(0, -62); ctx.lineTo(0, -36); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-18, -56); ctx.quadraticCurveTo(-8, -46, -18, -34); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(18, -56); ctx.quadraticCurveTo(8, -46, 18, -34); ctx.stroke();
+    // 眉心三角凹槽+填色
+    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    ctx.beginPath();
+    ctx.moveTo(0, -52); ctx.lineTo(-12, -36); ctx.lineTo(12, -36); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#2e7d32';
+    ctx.beginPath();
+    ctx.moveTo(0, -50); ctx.lineTo(-10, -36); ctx.lineTo(10, -36); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#4caf50';
+    ctx.beginPath();
+    ctx.moveTo(0, -48); ctx.lineTo(-7, -37); ctx.lineTo(7, -37); ctx.closePath(); ctx.fill();
+    // 额头横向纹
+    ctx.strokeStyle = '#1b5e20';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.moveTo(-14, -54); ctx.lineTo(14, -54); ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(-14, -55); ctx.lineTo(14, -55); ctx.stroke();
+
+    // 7. 头顶紫色宝石 — 多层立体：底座+宝石本体+高光+反光+金边
+    // 宝石底座（嵌入头顶的凹槽）
+    ctx.fillStyle = '#2e7d32';
+    ctx.beginPath(); ctx.ellipse(0, -64, 20, 10, 0, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.beginPath(); ctx.ellipse(0, -62, 20, 10, 0, 0, Math.PI*2); ctx.fill();
+    // 宝石本体（强光泽径向渐变）
+    const gemGrad = ctx.createRadialGradient(-5, -68, 2, 0, -64, 18);
+    gemGrad.addColorStop(0, '#ffffff');
+    gemGrad.addColorStop(0.15, '#e1bee7');
+    gemGrad.addColorStop(0.4, '#ce93d8');
+    gemGrad.addColorStop(0.7, '#ab47bc');
+    gemGrad.addColorStop(0.9, '#7b1fa2');
+    gemGrad.addColorStop(1, '#4a148c');
+    ctx.fillStyle = gemGrad;
+    ctx.beginPath();
+    ctx.arc(0, -64, 16, 0, Math.PI*2);
+    ctx.fill();
+    // 宝石底部反光（环境光）
+    ctx.fillStyle = 'rgba(255,255,255,0.15)';
+    ctx.beginPath(); ctx.arc(0, -58, 10, 0, Math.PI, false); ctx.fill();
+    // 宝石主高光
+    ctx.fillStyle = 'rgba(255,255,255,0.8)';
+    ctx.beginPath(); ctx.arc(-6, -72, 6, 0, Math.PI*2); ctx.fill();
+    // 宝石次高光
+    ctx.fillStyle = 'rgba(255,255,255,0.35)';
+    ctx.beginPath(); ctx.arc(6, -60, 3.5, 0, Math.PI*2); ctx.fill();
+    // 宝石厚金边
+    ctx.strokeStyle = '#fbc02d';
+    ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.arc(0, -64, 16, 0, Math.PI*2); ctx.stroke();
+    ctx.strokeStyle = '#f9a825';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(0, -64, 14, 0, Math.PI*2); ctx.stroke();
+    // 金边内侧阴影
+    ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(0, -64, 17, 0, Math.PI*2); ctx.stroke();
+
+    // 8. 眼睛 —  socket阴影 + 眼球隆起 + 多层高光
+    // 眼窝凹陷阴影
+    ctx.fillStyle = 'rgba(0,0,0,0.2)';
+    ctx.beginPath(); ctx.ellipse(-30, -44, 22, 20, -0.1, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(30, -44, 22, 20, 0.1, 0, Math.PI*2); ctx.fill();
+    // 眼球包（黄绿色隆起）
+    const eyeBagGradL = ctx.createRadialGradient(-34, -50, 4, -30, -44, 22);
+    eyeBagGradL.addColorStop(0, '#c5e1a5');
+    eyeBagGradL.addColorStop(0.7, '#8bc34a');
+    eyeBagGradL.addColorStop(1, '#558b2f');
+    ctx.fillStyle = eyeBagGradL;
+    ctx.beginPath(); ctx.ellipse(-30, -44, 22, 20, -0.1, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = '#1b5e20';
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+    const eyeBagGradR = ctx.createRadialGradient(34, -50, 4, 30, -44, 22);
+    eyeBagGradR.addColorStop(0, '#c5e1a5');
+    eyeBagGradR.addColorStop(0.7, '#8bc34a');
+    eyeBagGradR.addColorStop(1, '#558b2f');
+    ctx.fillStyle = eyeBagGradR;
+    ctx.beginPath(); ctx.ellipse(30, -44, 22, 20, 0.1, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = '#1b5e20';
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+
+    // 眼白（带轻微渐变，不是死白）
+    const scleraGrad = ctx.createRadialGradient(0, -4, 2, 0, 0, 14);
+    scleraGrad.addColorStop(0, '#ffffff');
+    scleraGrad.addColorStop(0.85, '#f5f5f5');
+    scleraGrad.addColorStop(1, '#e0e0e0');
+    ctx.fillStyle = scleraGrad;
+    ctx.beginPath(); ctx.arc(-30, -46, 14, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(30, -46, 14, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = '#1b5e20';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(-30, -46, 14, 0, Math.PI*2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(30, -46, 14, 0, Math.PI*2); ctx.stroke();
+
+    // 瞳孔（深绿外圈+黑色内芯）
+    const irisGrad = ctx.createRadialGradient(0, 0, 2, 0, 0, 8);
+    irisGrad.addColorStop(0, '#66bb6a');
+    irisGrad.addColorStop(0.5, '#2e7d32');
+    irisGrad.addColorStop(1, '#1b5e20');
+    ctx.fillStyle = irisGrad;
+    ctx.beginPath(); ctx.arc(-30, -46, 8, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(30, -46, 8, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#000000';
+    ctx.beginPath(); ctx.arc(-30, -46, 4, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(30, -46, 4, 0, Math.PI*2); ctx.fill();
+    // 瞳孔高光（玻璃质感）
+    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+    ctx.beginPath(); ctx.arc(-34, -50, 4.5, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(26, -50, 4.5, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.4)';
+    ctx.beginPath(); ctx.arc(-27, -43, 2.5, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(33, -43, 2.5, 0, Math.PI*2); ctx.fill();
+
+    // 9. 嘴巴 — 张开的立体口腔
+    // 口腔外阴影
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.beginPath(); ctx.ellipse(0, -62, 32, 26, 0, 0, Math.PI*2); ctx.fill();
+    // 口腔内壁（深紫红）
+    ctx.fillStyle = '#4a0e4e';
+    ctx.beginPath(); ctx.ellipse(0, -62, 30, 24, 0, 0, Math.PI*2); ctx.fill();
+    // 口腔深处（更暗）
+    ctx.fillStyle = '#2d0630';
+    ctx.beginPath(); ctx.ellipse(0, -60, 24, 18, 0, 0, Math.PI*2); ctx.fill();
+    // 舌头（亮紫色带高光）
+    const tongueGrad = ctx.createRadialGradient(0, -66, 2, 0, -62, 14);
+    tongueGrad.addColorStop(0, '#ce93d8');
+    tongueGrad.addColorStop(0.6, '#8e24aa');
+    tongueGrad.addColorStop(1, '#4a148c');
+    ctx.fillStyle = tongueGrad;
+    ctx.beginPath(); ctx.ellipse(0, -62, 14, 12, 0, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.2)';
+    ctx.beginPath(); ctx.ellipse(-4, -66, 5, 3, 0, 0, Math.PI*2); ctx.fill();
+
+    // 嘴里含的球
+    drawBall(0, -62, curColor, CFG.BALL_R * 0.92, 1, 0);
+
+    // 嘴唇（厚实，多层：阴影+主体+高光）
+    ctx.fillStyle = '#689f38';
+    ctx.beginPath(); ctx.ellipse(0, -74, 34, 15, 0, 0, Math.PI); ctx.fill();
+    ctx.fillStyle = '#aed581';
+    ctx.beginPath(); ctx.ellipse(0, -74, 32, 13, 0, 0, Math.PI); ctx.fill();
+    ctx.fillStyle = '#c5e1a5';
+    ctx.beginPath(); ctx.ellipse(0, -76, 28, 10, 0, 0, Math.PI); ctx.fill();
+    // 嘴唇高光
+    ctx.fillStyle = 'rgba(255,255,255,0.25)';
+    ctx.beginPath(); ctx.ellipse(-10, -78, 10, 4, 0, 0, Math.PI); ctx.fill();
+    // 嘴唇轮廓
+    ctx.strokeStyle = '#1b5e20';
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(0, -68, 33, -0.3, Math.PI + 0.3); ctx.stroke();
+
+    // 10. 前肢（左）— 立体圆柱感
+    const armLGrad = ctx.createRadialGradient(-48, -18, 3, -44, -14, 16);
+    armLGrad.addColorStop(0, '#8bc34a');
+    armLGrad.addColorStop(1, '#33691e');
+    ctx.fillStyle = armLGrad;
+    ctx.beginPath(); ctx.ellipse(-44, -14, 14, 12, -0.5, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = '#1b5e20';
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+    // 前脚爪
+    for (let i = 0; i < 3; i++) {
+        const cx = -54 - i*4;
+        const cy = -20 + i*3;
+        ctx.fillStyle = '#aed581';
+        ctx.beginPath(); ctx.arc(cx, cy, 4.5, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#33691e';
+        ctx.beginPath(); ctx.arc(cx+1, cy+1, 4.5, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#c5e1a5';
+        ctx.beginPath(); ctx.arc(cx-0.5, cy-0.5, 3.5, 0, Math.PI*2); ctx.fill();
+    }
+
+    // 11. 前肢（右）
+    const armRGrad = ctx.createRadialGradient(48, -18, 3, 44, -14, 16);
+    armRGrad.addColorStop(0, '#8bc34a');
+    armRGrad.addColorStop(1, '#33691e');
+    ctx.fillStyle = armRGrad;
+    ctx.beginPath(); ctx.ellipse(44, -14, 14, 12, 0.5, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = '#1b5e20';
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+    for (let i = 0; i < 3; i++) {
+        const cx = 54 + i*4;
+        const cy = -20 + i*3;
+        ctx.fillStyle = '#aed581';
+        ctx.beginPath(); ctx.arc(cx, cy, 4.5, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#33691e';
+        ctx.beginPath(); ctx.arc(cx-1, cy+1, 4.5, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#c5e1a5';
+        ctx.beginPath(); ctx.arc(cx+0.5, cy-0.5, 3.5, 0, Math.PI*2); ctx.fill();
+    }
+
+    ctx.restore();
+
+    // 下一个球（显示在青蛙后方）
+    const nx = CFG.FROG_X + Math.cos(angle + Math.PI) * 42;
+    const ny = CFG.FROG_Y + Math.sin(angle + Math.PI) * 42;
+    drawBall(nx, ny, nextColor, CFG.BALL_R * 0.72, 1, 0);
+}
+
+function drawStar(x, y, r, points, rot) {
+    ctx.beginPath();
+    for (let i = 0; i < points * 2; i++) {
+        const a = rot + (i * Math.PI) / points;
+        const rr = (i % 2 === 0) ? r : r * 0.4;
+        if (i === 0) ctx.moveTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr);
+        else ctx.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr);
+    }
+    ctx.closePath();
+}
+
+function drawLion() {
+    ctx.save();
+    ctx.translate(CFG.FROG_X, CFG.FROG_Y);
+    ctx.rotate(angle + Math.PI / 2);
+
+    // 1. 贴地阴影
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.beginPath(); ctx.ellipse(0, 16, 68, 50, 0, 0, Math.PI * 2); ctx.fill();
+
+    // 2. 后腿（左）— 青铜/金色调
+    const legLGrad = ctx.createRadialGradient(-52, 16, 4, -48, 22, 28);
+    legLGrad.addColorStop(0, '#b8963a'); legLGrad.addColorStop(0.6, '#8a6a20'); legLGrad.addColorStop(1, '#5a4010');
+    ctx.fillStyle = legLGrad;
+    ctx.beginPath(); ctx.ellipse(-48, 24, 28, 22, -0.5, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#3a2808'; ctx.lineWidth = 2.5; ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,0.15)';
+    ctx.beginPath(); ctx.ellipse(-44, 18, 14, 8, -0.5, 0, Math.PI * 2); ctx.fill();
+    // 后脚掌
+    const footLGrad = ctx.createRadialGradient(-60, 10, 2, -58, 12, 14);
+    footLGrad.addColorStop(0, '#d4a848'); footLGrad.addColorStop(1, '#6a5020');
+    ctx.fillStyle = footLGrad;
+    ctx.beginPath(); ctx.ellipse(-60, 12, 15, 12, -0.3, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#3a2808'; ctx.lineWidth = 2; ctx.stroke();
+    // 后脚爪
+    for (let i = 0; i < 3; i++) {
+        const cx = -68 - i * 4; const cy = 16 + i * 3;
+        ctx.fillStyle = '#e8c860'; ctx.beginPath(); ctx.arc(cx, cy, 4.5, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#5a4010'; ctx.beginPath(); ctx.arc(cx + 1, cy + 1, 4.5, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#f0d880'; ctx.beginPath(); ctx.arc(cx - 0.5, cy - 0.5, 3.5, 0, Math.PI * 2); ctx.fill();
+    }
+
+    // 3. 后腿（右）— 镜像
+    const legRGrad = ctx.createRadialGradient(52, 16, 4, 48, 22, 28);
+    legRGrad.addColorStop(0, '#b8963a'); legRGrad.addColorStop(0.6, '#8a6a20'); legRGrad.addColorStop(1, '#5a4010');
+    ctx.fillStyle = legRGrad;
+    ctx.beginPath(); ctx.ellipse(48, 24, 28, 22, 0.5, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#3a2808'; ctx.lineWidth = 2.5; ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,0.15)';
+    ctx.beginPath(); ctx.ellipse(44, 18, 14, 8, 0.5, 0, Math.PI * 2); ctx.fill();
+    const footRGrad = ctx.createRadialGradient(60, 10, 2, 58, 12, 14);
+    footRGrad.addColorStop(0, '#d4a848'); footRGrad.addColorStop(1, '#6a5020');
+    ctx.fillStyle = footRGrad;
+    ctx.beginPath(); ctx.ellipse(60, 12, 15, 12, 0.3, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#3a2808'; ctx.lineWidth = 2; ctx.stroke();
+    for (let i = 0; i < 3; i++) {
+        const cx = 68 + i * 4; const cy = 16 + i * 3;
+        ctx.fillStyle = '#e8c860'; ctx.beginPath(); ctx.arc(cx, cy, 4.5, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#5a4010'; ctx.beginPath(); ctx.arc(cx - 1, cy + 1, 4.5, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#f0d880'; ctx.beginPath(); ctx.arc(cx + 0.5, cy - 0.5, 3.5, 0, Math.PI * 2); ctx.fill();
+    }
+
+    // 4. 翅膀（后）— 小型翅膀
+    ctx.save(); ctx.globalAlpha = 0.85;
+    const wingLGrad = ctx.createLinearGradient(-70, -20, -30, 10);
+    wingLGrad.addColorStop(0, '#8a6a20'); wingLGrad.addColorStop(0.5, '#b8963a'); wingLGrad.addColorStop(1, '#5a4010');
+    ctx.fillStyle = wingLGrad;
+    ctx.beginPath(); ctx.moveTo(-40, -10); ctx.quadraticCurveTo(-80, -40, -90, -10); ctx.quadraticCurveTo(-80, 10, -40, 5); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = '#3a2808'; ctx.lineWidth = 1.5; ctx.stroke();
+    const wingRGrad = ctx.createLinearGradient(70, -20, 30, 10);
+    wingRGrad.addColorStop(0, '#8a6a20'); wingRGrad.addColorStop(0.5, '#b8963a'); wingRGrad.addColorStop(1, '#5a4010');
+    ctx.fillStyle = wingRGrad;
+    ctx.beginPath(); ctx.moveTo(40, -10); ctx.quadraticCurveTo(80, -40, 90, -10); ctx.quadraticCurveTo(80, 10, 40, 5); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = '#3a2808'; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.restore();
+
+    // 5. 身体 — 青铜金径向渐变
+    const bodyGrad = ctx.createRadialGradient(-14, -2, 12, 0, 8, 60);
+    bodyGrad.addColorStop(0, '#f0e0b0'); bodyGrad.addColorStop(0.3, '#e0c870'); bodyGrad.addColorStop(0.6, '#c8a830'); bodyGrad.addColorStop(0.85, '#a88820'); bodyGrad.addColorStop(1, '#7a6010');
+    ctx.fillStyle = bodyGrad;
+    ctx.beginPath(); ctx.ellipse(0, 10, 54, 44, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#3a2808'; ctx.lineWidth = 3; ctx.stroke();
+    ctx.fillStyle = 'rgba(0,0,0,0.12)';
+    ctx.beginPath(); ctx.ellipse(-36, 12, 14, 22, 0.3, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(36, 12, 14, 22, -0.3, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.22)';
+    ctx.beginPath(); ctx.ellipse(0, 18, 28, 18, 0, 0, Math.PI * 2); ctx.fill();
+
+    // 6. 头部 — 更大更立体
+    const headGrad = ctx.createRadialGradient(-8, -32, 8, 0, -28, 42);
+    headGrad.addColorStop(0, '#f0e0b0'); headGrad.addColorStop(0.4, '#d8b848'); headGrad.addColorStop(0.8, '#a88820'); headGrad.addColorStop(1, '#6a5010');
+    ctx.fillStyle = headGrad;
+    ctx.beginPath(); ctx.ellipse(0, -28, 38, 34, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#3a2808'; ctx.lineWidth = 2.5; ctx.stroke();
+
+    // 7. 鬃毛 — 卷曲造型
+    ctx.strokeStyle = '#5a4010'; ctx.lineWidth = 3;
+    for (let side = -1; side <= 1; side += 2) {
+        for (let i = 0; i < 5; i++) {
+            const ay = -50 + i * 12;
+            ctx.beginPath(); ctx.arc(side * 32, ay, 10, side * 0.5, side * 2.5); ctx.stroke();
+        }
+    }
+    // 鬃毛高光
+    ctx.strokeStyle = '#e8c860'; ctx.lineWidth = 1.5;
+    for (let side = -1; side <= 1; side += 2) {
+        for (let i = 0; i < 5; i++) {
+            const ay = -50 + i * 12;
+            ctx.beginPath(); ctx.arc(side * 31, ay - 1, 9, side * 0.5, side * 2.5); ctx.stroke();
+        }
+    }
+
+    // 8. 王冠/头饰 + 蓝宝石
+    ctx.fillStyle = '#d4a030';
+    ctx.beginPath(); ctx.moveTo(-24, -52); ctx.lineTo(0, -68); ctx.lineTo(24, -52); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = '#8a6a20'; ctx.lineWidth = 2; ctx.stroke();
+    // 宝石
+    const gemGrad = ctx.createRadialGradient(-6, -56, 2, 0, -54, 12);
+    gemGrad.addColorStop(0, '#80e0ff'); gemGrad.addColorStop(0.5, '#2080c0'); gemGrad.addColorStop(1, '#104060');
+    ctx.fillStyle = gemGrad; ctx.beginPath(); ctx.arc(0, -54, 10, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#d4a030'; ctx.lineWidth = 2.5; ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,0.6)';
+    ctx.beginPath(); ctx.ellipse(-3, -58, 3, 2, -0.5, 0, Math.PI * 2); ctx.fill();
+
+    // 9. 眼睛（更大更醒目）
+    for (let side = -1; side <= 1; side += 2) {
+        ctx.fillStyle = 'rgba(0,0,0,0.25)';
+        ctx.beginPath(); ctx.ellipse(side * 22, -34, 14, 16, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#f0e8d0';
+        ctx.beginPath(); ctx.ellipse(side * 22, -34, 12, 14, 0, 0, Math.PI * 2); ctx.fill();
+        const irisGrad = ctx.createRadialGradient(side * 22 - 2, -36, 1, side * 22, -34, 7);
+        irisGrad.addColorStop(0, '#60c0ff'); irisGrad.addColorStop(0.6, '#2080c0'); irisGrad.addColorStop(1, '#104060');
+        ctx.fillStyle = irisGrad;
+        ctx.beginPath(); ctx.arc(side * 22, -34, 7, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#0a1a2a';
+        ctx.beginPath(); ctx.arc(side * 22, -34, 3.5, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,0.85)';
+        ctx.beginPath(); ctx.arc(side * 20, -37, 2.2, 0, Math.PI * 2); ctx.fill();
+    }
+
+    // 10. 鼻子和嘴
+    ctx.fillStyle = '#c8a830';
+    ctx.beginPath(); ctx.ellipse(0, -14, 14, 10, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#5a4010'; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.fillStyle = '#3a2010';
+    ctx.beginPath(); ctx.ellipse(0, -12, 8, 5, 0, 0, Math.PI * 2); ctx.fill();
+
+    // 11. 大嘴唇（含球）
+    ctx.fillStyle = '#a07818';
+    ctx.beginPath(); ctx.ellipse(0, 2, 28, 18, 0, Math.PI, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#5a4010'; ctx.lineWidth = 2.5; ctx.stroke();
+    ctx.fillStyle = '#c89828';
+    ctx.beginPath(); ctx.ellipse(0, 2, 28, 18, 0, 0, Math.PI); ctx.fill();
+    ctx.strokeStyle = '#5a4010'; ctx.lineWidth = 2.5; ctx.stroke();
+    // 嘴唇高光
+    ctx.strokeStyle = '#f0d880'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.ellipse(-1, 1, 24, 14, 0, Math.PI * 0.15, Math.PI * 0.85); ctx.stroke();
+
+    // 12. 前腿（短粗，趴姿）
+    for (let side = -1; side <= 1; side += 2) {
+        const fGrad = ctx.createRadialGradient(side * 32, 38, 2, side * 32, 42, 18);
+        fGrad.addColorStop(0, '#c8a830'); fGrad.addColorStop(0.7, '#a07818'); fGrad.addColorStop(1, '#5a4010');
+        ctx.fillStyle = fGrad;
+        ctx.beginPath(); ctx.ellipse(side * 32, 42, 16, 20, side * 0.2, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#3a2808'; ctx.lineWidth = 2.5; ctx.stroke();
+        // 前脚掌
+        const ffGrad = ctx.createRadialGradient(side * 36, 56, 2, side * 36, 58, 12);
+        ffGrad.addColorStop(0, '#d4a848'); ffGrad.addColorStop(1, '#6a5020');
+        ctx.fillStyle = ffGrad;
+        ctx.beginPath(); ctx.ellipse(side * 36, 58, 13, 10, side * 0.15, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#3a2808'; ctx.lineWidth = 2; ctx.stroke();
+        // 前爪
+        for (let i = 0; i < 3; i++) {
+            const cx = side * (40 + i * 5); const cy = 62 + i * 2;
+            ctx.fillStyle = '#e8c860'; ctx.beginPath(); ctx.arc(cx, cy, 3.5, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#5a4010'; ctx.beginPath(); ctx.arc(cx + side * 0.5, cy + 0.5, 3.5, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#f0d880'; ctx.beginPath(); ctx.arc(cx - side * 0.3, cy - 0.3, 2.5, 0, Math.PI * 2); ctx.fill();
+        }
+    }
+
+    // 13. 尾巴
+    ctx.strokeStyle = '#8a6a20'; ctx.lineWidth = 10; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(0, 48); ctx.quadraticCurveTo(20, 70, 50, 55); ctx.stroke();
+    ctx.strokeStyle = '#b8963a'; ctx.lineWidth = 6;
+    ctx.beginPath(); ctx.moveTo(0, 48); ctx.quadraticCurveTo(20, 70, 50, 55); ctx.stroke();
+    // 尾巴末端毛球
+    ctx.fillStyle = '#a07818'; ctx.beginPath(); ctx.arc(50, 55, 8, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#5a4010'; ctx.lineWidth = 2; ctx.stroke();
+
+    // 嘴里含的球
+    drawBall(0, 2, curColor, CFG.BALL_R * 0.72, 1, 0);
+
+    ctx.restore();
+
+    // 下一个球（显示在后方）
+    const nx = CFG.FROG_X + Math.cos(angle + Math.PI) * 42;
+    const ny = CFG.FROG_Y + Math.sin(angle + Math.PI) * 42;
+    drawBall(nx, ny, nextColor, CFG.BALL_R * 0.72, 1, 0);
+}
+
+function drawDragon() {
+    ctx.save();
+    ctx.translate(CFG.FROG_X, CFG.FROG_Y);
+    ctx.rotate(angle + Math.PI / 2);
+
+    // 1. 贴地阴影
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.beginPath(); ctx.ellipse(0, 16, 68, 50, 0, 0, Math.PI * 2); ctx.fill();
+
+    // 2. 盘绕的龙身（后）
+    for (let i = 3; i >= 0; i--) {
+        const sx = Math.sin(i * 1.2) * 18; const sy = 30 + i * 14;
+        const sGrad = ctx.createRadialGradient(sx - 4, sy - 4, 2, sx, sy, 22);
+        sGrad.addColorStop(0, '#e85030'); sGrad.addColorStop(0.5, '#c02018'); sGrad.addColorStop(1, '#801008');
+        ctx.fillStyle = sGrad;
+        ctx.beginPath(); ctx.ellipse(sx, sy, 24, 18, Math.sin(i) * 0.3, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#501008'; ctx.lineWidth = 2.5; ctx.stroke();
+        // 鳞片高光
+        ctx.strokeStyle = '#f07050'; ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.arc(sx - 6, sy - 4, 10, 0.5, 2.5); ctx.stroke();
+        ctx.beginPath(); ctx.arc(sx + 4, sy + 2, 8, 3, 5.5); ctx.stroke();
+    }
+
+    // 3. 身体主体
+    const bodyGrad = ctx.createRadialGradient(-14, -2, 12, 0, 8, 60);
+    bodyGrad.addColorStop(0, '#f8a898'); bodyGrad.addColorStop(0.3, '#e86048'); bodyGrad.addColorStop(0.6, '#d03020'); bodyGrad.addColorStop(0.85, '#a01810'); bodyGrad.addColorStop(1, '#700808');
+    ctx.fillStyle = bodyGrad;
+    ctx.beginPath(); ctx.ellipse(0, 10, 54, 44, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#501008'; ctx.lineWidth = 3; ctx.stroke();
+    ctx.fillStyle = 'rgba(0,0,0,0.12)';
+    ctx.beginPath(); ctx.ellipse(-36, 12, 14, 22, 0.3, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(36, 12, 14, 22, -0.3, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.18)';
+    ctx.beginPath(); ctx.ellipse(0, 18, 28, 18, 0, 0, Math.PI * 2); ctx.fill();
+    // 腹部鳞片线
+    ctx.strokeStyle = 'rgba(0,0,0,0.2)'; ctx.lineWidth = 1.5;
+    for (let i = -2; i <= 2; i++) {
+        ctx.beginPath(); ctx.moveTo(i * 12, 0); ctx.lineTo(i * 14, 40); ctx.stroke();
+    }
+
+    // 4. 头部
+    const headGrad = ctx.createRadialGradient(-8, -32, 8, 0, -28, 42);
+    headGrad.addColorStop(0, '#f8a898'); headGrad.addColorStop(0.4, '#e85038'); headGrad.addColorStop(0.8, '#c02018'); headGrad.addColorStop(1, '#801008');
+    ctx.fillStyle = headGrad;
+    ctx.beginPath(); ctx.ellipse(0, -28, 40, 36, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#501008'; ctx.lineWidth = 2.5; ctx.stroke();
+
+    // 5. 龙角
+    for (let side = -1; side <= 1; side += 2) {
+        ctx.fillStyle = '#d4a030';
+        ctx.beginPath(); ctx.moveTo(side * 14, -56); ctx.lineTo(side * 22, -82); ctx.lineTo(side * 28, -52); ctx.closePath(); ctx.fill();
+        ctx.strokeStyle = '#8a6a20'; ctx.lineWidth = 2; ctx.stroke();
+        ctx.fillStyle = '#f0d880';
+        ctx.beginPath(); ctx.moveTo(side * 15, -54); ctx.lineTo(side * 22, -78); ctx.lineTo(side * 26, -52); ctx.closePath(); ctx.fill();
+    }
+
+    // 6. 火焰/鬃毛（头顶）
+    ctx.save(); ctx.globalAlpha = 0.85;
+    for (let i = 0; i < 7; i++) {
+        const fx = Math.sin(i * 0.9) * 18; const fy = -56 - i * 6;
+        const fGrad = ctx.createRadialGradient(fx, fy, 1, fx, fy, 10);
+        fGrad.addColorStop(0, '#f8c040'); fGrad.addColorStop(0.6, '#e86018'); fGrad.addColorStop(1, '#a01810');
+        ctx.fillStyle = fGrad;
+        ctx.beginPath(); ctx.ellipse(fx, fy, 8, 12, Math.sin(i) * 0.5, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
+
+    // 7. 额头宝珠（金色）
+    const pearlGrad = ctx.createRadialGradient(-4, -50, 2, 0, -48, 11);
+    pearlGrad.addColorStop(0, '#fff8d0'); pearlGrad.addColorStop(0.4, '#f0d860'); pearlGrad.addColorStop(0.8, '#d4a030'); pearlGrad.addColorStop(1, '#8a6a10');
+    ctx.fillStyle = pearlGrad; ctx.beginPath(); ctx.arc(0, -48, 11, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#d4a030'; ctx.lineWidth = 2.5; ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,0.7)';
+    ctx.beginPath(); ctx.ellipse(-3, -52, 3.5, 2.5, -0.5, 0, Math.PI * 2); ctx.fill();
+
+    // 8. 眼睛（细长龙目）
+    for (let side = -1; side <= 1; side += 2) {
+        ctx.fillStyle = 'rgba(0,0,0,0.25)';
+        ctx.beginPath(); ctx.ellipse(side * 24, -34, 16, 12, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#f0e8d0';
+        ctx.beginPath(); ctx.ellipse(side * 24, -34, 14, 10, 0, 0, Math.PI * 2); ctx.fill();
+        const irisGrad = ctx.createRadialGradient(side * 24 - 2, -36, 1, side * 24, -34, 7);
+        irisGrad.addColorStop(0, '#ffcc00'); irisGrad.addColorStop(0.6, '#e08810'); irisGrad.addColorStop(1, '#a05008');
+        ctx.fillStyle = irisGrad;
+        ctx.beginPath(); ctx.arc(side * 24, -34, 7, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#2a1000';
+        ctx.beginPath(); ctx.arc(side * 24, -34, 3.5, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,0.85)';
+        ctx.beginPath(); ctx.arc(side * 22, -37, 2.2, 0, Math.PI * 2); ctx.fill();
+        // 龙目上方的眉骨
+        ctx.strokeStyle = '#a01810'; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.moveTo(side * 12, -42); ctx.quadraticCurveTo(side * 22, -50, side * 34, -40); ctx.stroke();
+    }
+
+    // 9. 长须
+    ctx.strokeStyle = '#e8c860'; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
+    for (let side = -1; side <= 1; side += 2) {
+        ctx.beginPath(); ctx.moveTo(side * 18, -10); ctx.quadraticCurveTo(side * 40, 10, side * 30, 45); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(side * 12, -6); ctx.quadraticCurveTo(side * 34, 16, side * 24, 48); ctx.stroke();
+    }
+
+    // 10. 鼻子
+    ctx.fillStyle = '#c02018';
+    ctx.beginPath(); ctx.ellipse(0, -14, 14, 10, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#501008'; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.fillStyle = '#801008';
+    ctx.beginPath(); ctx.ellipse(0, -12, 8, 5, 0, 0, Math.PI * 2); ctx.fill();
+    // 鼻孔
+    ctx.fillStyle = '#300400';
+    ctx.beginPath(); ctx.ellipse(-4, -12, 2.5, 1.5, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(4, -12, 2.5, 1.5, 0, 0, Math.PI * 2); ctx.fill();
+
+    // 11. 大嘴唇（含球）
+    ctx.fillStyle = '#a01810';
+    ctx.beginPath(); ctx.ellipse(0, 2, 28, 18, 0, Math.PI, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#501008'; ctx.lineWidth = 2.5; ctx.stroke();
+    ctx.fillStyle = '#d03020';
+    ctx.beginPath(); ctx.ellipse(0, 2, 28, 18, 0, 0, Math.PI); ctx.fill();
+    ctx.strokeStyle = '#501008'; ctx.lineWidth = 2.5; ctx.stroke();
+    ctx.strokeStyle = '#f07060'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.ellipse(-1, 1, 24, 14, 0, Math.PI * 0.15, Math.PI * 0.85); ctx.stroke();
+
+    // 12. 龙爪（前肢）
+    for (let side = -1; side <= 1; side += 2) {
+        const fGrad = ctx.createRadialGradient(side * 32, 38, 2, side * 32, 42, 18);
+        fGrad.addColorStop(0, '#e85038'); fGrad.addColorStop(0.7, '#c02018'); fGrad.addColorStop(1, '#701008');
+        ctx.fillStyle = fGrad;
+        ctx.beginPath(); ctx.ellipse(side * 32, 42, 16, 20, side * 0.2, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#501008'; ctx.lineWidth = 2.5; ctx.stroke();
+        // 前脚掌
+        const ffGrad = ctx.createRadialGradient(side * 36, 56, 2, side * 36, 58, 12);
+        ffGrad.addColorStop(0, '#f07050'); ffGrad.addColorStop(1, '#801008');
+        ctx.fillStyle = ffGrad;
+        ctx.beginPath(); ctx.ellipse(side * 36, 58, 13, 10, side * 0.15, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#501008'; ctx.lineWidth = 2; ctx.stroke();
+        // 爪
+        for (let i = 0; i < 3; i++) {
+            const cx = side * (40 + i * 5); const cy = 62 + i * 2;
+            ctx.fillStyle = '#f8c040'; ctx.beginPath(); ctx.arc(cx, cy, 3.5, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#a01810'; ctx.beginPath(); ctx.arc(cx + side * 0.5, cy + 0.5, 3.5, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#f0d880'; ctx.beginPath(); ctx.arc(cx - side * 0.3, cy - 0.3, 2.5, 0, Math.PI * 2); ctx.fill();
+        }
+    }
+
+    // 13. 尾巴尖
+    ctx.strokeStyle = '#c02018'; ctx.lineWidth = 10; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(0, 48); ctx.quadraticCurveTo(20, 70, 50, 55); ctx.stroke();
+    ctx.strokeStyle = '#e85038'; ctx.lineWidth = 6;
+    ctx.beginPath(); ctx.moveTo(0, 48); ctx.quadraticCurveTo(20, 70, 50, 55); ctx.stroke();
+    ctx.fillStyle = '#f8c040'; ctx.beginPath(); ctx.arc(50, 55, 8, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#d4a030'; ctx.lineWidth = 2; ctx.stroke();
+    // 尾尖火焰
+    ctx.fillStyle = 'rgba(255, 160, 40, 0.6)';
+    ctx.beginPath(); ctx.arc(50, 55, 14, 0, Math.PI * 2); ctx.fill();
+
+    // 嘴里含的球
+    drawBall(0, 2, curColor, CFG.BALL_R * 0.72, 1, 0);
+
+    ctx.restore();
+
+    // 下一个球（显示在后方）
+    const nx = CFG.FROG_X + Math.cos(angle + Math.PI) * 42;
+    const ny = CFG.FROG_Y + Math.sin(angle + Math.PI) * 42;
+    drawBall(nx, ny, nextColor, CFG.BALL_R * 0.72, 1, 0);
+}
+
+function drawParticles() {
+    for (const pt of particles) {
+        const a = Math.max(0, pt.life);
+        ctx.globalAlpha = a;
+        if (pt.type === 'star') {
+            ctx.fillStyle = pt.color;
+            drawStar(pt.x, pt.y, pt.radius * a, 4, pt.rot || 0);
+            ctx.fill();
+            // 星核高亮
+            ctx.fillStyle = '#fff';
+            ctx.beginPath();
+            ctx.arc(pt.x, pt.y, pt.radius * a * 0.3, 0, Math.PI * 2);
+            ctx.fill();
+        } else if (pt.type === 'glow') {
+            const gr = ctx.createRadialGradient(pt.x, pt.y, 0, pt.x, pt.y, pt.radius * a * 2);
+            gr.addColorStop(0, pt.color);
+            gr.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = gr;
+            ctx.beginPath();
+            ctx.arc(pt.x, pt.y, pt.radius * a * 2, 0, Math.PI * 2);
+            ctx.fill();
+        } else {
+            ctx.fillStyle = pt.color;
+            ctx.beginPath();
+            ctx.arc(pt.x, pt.y, pt.radius * a, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    }
+    ctx.globalAlpha = 1;
+}
+
+function drawGuide() {
+    if (!running || shot) return;
+    const sp = getShooterPos();
+    const city = getCity();
+    const maxLen = 220;
+    const dx = Math.cos(angle);
+    const dy = Math.sin(angle);
+    // 在球链前留出安全距离，不画到球上
+    let len = maxLen;
+    const safeDist = CFG.BALL_R * 2.8;
+    for (const b of balls) {
+        const bx = b.x - sp.x;
+        const by = b.y - sp.y;
+        const proj = bx * dx + by * dy;
+        if (proj > 0 && proj < len + safeDist) {
+            const perp = Math.abs(bx * dy - by * dx);
+            if (perp < safeDist) {
+                len = Math.min(len, proj - safeDist);
+            }
+        }
+    }
+    len = Math.max(60, len);
+    let guideColor = 'rgba(255, 230, 80, 0.55)';
+    let glowColor = 'rgba(255, 230, 80, 0.15)';
+    if (city.theme === 'babylon') { guideColor = 'rgba(120, 255, 200, 0.55)'; glowColor = 'rgba(120, 255, 200, 0.15)'; }
+    else if (city.theme === 'china') { guideColor = 'rgba(255, 120, 100, 0.55)'; glowColor = 'rgba(255, 120, 100, 0.15)'; }
+    ctx.save();
+    const ex = sp.x + dx * len;
+    const ey = sp.y + dy * len;
+    // 外发光层
+    ctx.beginPath();
+    ctx.moveTo(sp.x, sp.y);
+    ctx.lineTo(ex, ey);
+    ctx.strokeStyle = glowColor;
+    ctx.lineWidth = 10;
+    ctx.lineCap = 'round';
+    ctx.stroke();
+    // 主线虚线
+    ctx.beginPath();
+    ctx.moveTo(sp.x, sp.y);
+    ctx.lineTo(ex, ey);
+    ctx.strokeStyle = guideColor;
+    ctx.lineWidth = 3.5;
+    ctx.setLineDash([10, 8]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+}
+
+// ===================== 主循环 =====================
+function loop(timestamp) {
+    if (!lastTime) lastTime = timestamp;
+    let dt = (timestamp - lastTime) / 1000;
+    lastTime = timestamp;
+    dt = Math.min(dt, 0.1);
+    accumulator += dt;
+    while (accumulator >= FIXED_DT) {
+        update();
+        accumulator -= FIXED_DT;
+    }
+    draw();
+    requestAnimationFrame(loop);
+}
+
+// 启动
+init();
+</script>
+</body>
+</html>
