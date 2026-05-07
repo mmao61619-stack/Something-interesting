@@ -74,8 +74,13 @@
                 0 0 40px rgba(184, 150, 58, 0.25),
                 inset 0 0 60px rgba(0,0,0,0.5);
             max-width: 520px;
+            max-height: 85vh;
+            overflow-y: auto;
             animation: cardIn 0.5s ease-out;
         }
+        .stone-card::-webkit-scrollbar { display: none; }
+        .stone-card { scrollbar-width: none; }
+
         .stone-card::before, .stone-card::after {
             content: '';
             position: absolute;
@@ -419,34 +424,6 @@
         }
         #swapBtn:active { transform: scale(0.92); background: rgba(30, 20, 8, 0.75); }
 
-        /* ===== 发射按钮 ===== */
-        #shootBtn {
-            position: absolute;
-            bottom: 14px;
-            left: 14px;
-            width: 52px;
-            height: 52px;
-            border-radius: 50%;
-            background: rgba(10, 6, 2, 0.55);
-            border: 2px solid rgba(184, 150, 58, 0.55);
-            color: #ffd700;
-            font-size: 13px;
-            display: none;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            z-index: 6;
-            backdrop-filter: blur(2px);
-            box-shadow: 0 4px 12px rgba(0,0,0,0.35);
-            user-select: none;
-            -webkit-tap-highlight-color: transparent;
-            transition: transform 0.1s ease, background 0.2s ease;
-            font-weight: bold;
-            letter-spacing: 1px;
-        }
-        #shootBtn:active { transform: scale(0.92); background: rgba(30, 20, 8, 0.75); }
-        #shootBtn.visible { display: flex; }
-
         /* ===== 暂停按钮 ===== */
         #pauseBtn {
             position: absolute;
@@ -550,29 +527,22 @@
                 width: 56px;
                 height: 56px;
                 font-size: 24px;
-                bottom: 18px;
-                right: 18px;
+                bottom: 24px;
+                right: 24px;
             }
             #pauseBtn {
                 width: 42px;
                 height: 42px;
                 font-size: 18px;
-                top: 16px;
-                right: 16px;
+                top: 20px;
+                right: 20px;
             }
             #fullscreenBtn {
                 width: 42px;
                 height: 42px;
                 font-size: 18px;
-                top: 16px;
-                left: 16px;
-            }
-            #shootBtn {
-                width: 56px;
-                height: 56px;
-                font-size: 14px;
-                bottom: 18px;
-                left: 18px;
+                top: 20px;
+                left: 20px;
             }
         }
         @media (max-width: 400px) {
@@ -607,17 +577,12 @@
                 height: 50px;
                 font-size: 20px;
             }
-            #shootBtn {
-                width: 50px;
-                height: 50px;
-                font-size: 12px;
-            }
             #fullscreenBtn {
                 width: 38px;
                 height: 38px;
                 font-size: 14px;
-                top: 14px;
-                left: 14px;
+                top: 18px;
+                left: 18px;
             }
             .map-world {
                 height: min(280px, 38vh);
@@ -641,7 +606,6 @@
     </div>
     <button id="pauseBtn">⏸</button>
     <button id="swapBtn">⇄</button>
-    <button id="shootBtn">发射</button>
     <button id="fullscreenBtn">⛶</button>
 
     <div id="menuOverlay" class="ui-overlay active">
@@ -804,6 +768,7 @@ let slowTimer = 0;   // 减速效果剩余帧数
 let comboFlash = 0;  // 连击屏幕闪烁强度 (0-1)
 let floatTexts = []; // 飘字数组 {x, y, text, color, life, vy}
 let paused = false;
+let touchStartTime = 0, touchStartX = 0, touchStartY = 0;
 
 const FIXED_DT = 1 / 60;
 let accumulator = 0;
@@ -1119,7 +1084,6 @@ function init() {
     document.getElementById('victoryMenuBtn').onclick = showMenu;
     document.getElementById('swapBtn').onclick = swapBall;
     document.getElementById('pauseBtn').onclick = togglePause;
-    document.getElementById('shootBtn').onclick = shoot;
     document.getElementById('fullscreenBtn').onclick = toggleFullscreen;
     document.getElementById('resumeBtn').onclick = resumeGame;
     document.getElementById('pauseMenuBtn').onclick = showMenu;
@@ -1152,12 +1116,24 @@ function init() {
 
     canvas.addEventListener('touchstart', e => {
         e.preventDefault();
+        touchStartTime = Date.now();
+        touchStartX = e.touches[0].clientX;
+        touchStartY = e.touches[0].clientY;
         const r = canvas.getBoundingClientRect();
         const rawX = (e.touches[0].clientX - r.left) * (canvas.width / r.width);
         const rawY = (e.touches[0].clientY - r.top) * (canvas.height / r.height);
         mouseX = (rawX - contentOffsetX) / contentScale;
         mouseY = (rawY - contentOffsetY) / contentScale;
         angle = Math.atan2(mouseY - CFG.FROG_Y, mouseX - CFG.FROG_X);
+    }, {passive:false});
+
+    canvas.addEventListener('touchend', e => {
+        const dt = Date.now() - touchStartTime;
+        const dx = Math.abs(e.changedTouches[0].clientX - touchStartX);
+        const dy = Math.abs(e.changedTouches[0].clientY - touchStartY);
+        if (dt < 250 && dx < 12 && dy < 12) {
+            shoot();
+        }
     }, {passive:false});
 
     window.addEventListener('keydown', e => {
@@ -1207,11 +1183,6 @@ function resize() {
     document.body.style.width = vw + 'px';
 
     const isMobile = vw < 768 || vh < 600;
-    const shootBtn = document.getElementById('shootBtn');
-    if (shootBtn) {
-        if (isMobile) shootBtn.classList.add('visible');
-        else shootBtn.classList.remove('visible');
-    }
     const fsBtn = document.getElementById('fullscreenBtn');
     if (fsBtn) {
         if (isMobile) fsBtn.classList.add('visible');
