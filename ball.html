@@ -473,6 +473,32 @@
         #pauseBtn:active { transform: scale(0.92); }
         #pauseBtn.visible { display: flex; }
 
+        /* ===== 全屏按钮 ===== */
+        #fullscreenBtn {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            background: rgba(10, 6, 2, 0.55);
+            border: 2px solid rgba(184, 150, 58, 0.5);
+            color: #ffd700;
+            font-size: 16px;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 6;
+            backdrop-filter: blur(2px);
+            box-shadow: 0 3px 10px rgba(0,0,0,0.3);
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+            transition: transform 0.1s ease;
+        }
+        #fullscreenBtn:active { transform: scale(0.92); }
+        #fullscreenBtn.visible { display: flex; }
+
         /* ===== 移动端适配 ===== */
         @media (max-width: 768px) {
             .stone-card {
@@ -534,6 +560,13 @@
                 top: 6px;
                 right: 6px;
             }
+            #fullscreenBtn {
+                width: 42px;
+                height: 42px;
+                font-size: 18px;
+                top: 6px;
+                left: 6px;
+            }
             #shootBtn {
                 width: 56px;
                 height: 56px;
@@ -579,6 +612,13 @@
                 height: 50px;
                 font-size: 12px;
             }
+            #fullscreenBtn {
+                width: 38px;
+                height: 38px;
+                font-size: 14px;
+                top: 4px;
+                left: 4px;
+            }
             .map-world {
                 height: min(280px, 38vh);
             }
@@ -602,6 +642,7 @@
     <button id="pauseBtn">⏸</button>
     <button id="swapBtn">⇄</button>
     <button id="shootBtn">发射</button>
+    <button id="fullscreenBtn">⛶</button>
 
     <div id="menuOverlay" class="ui-overlay active">
         <div class="stone-card">
@@ -755,6 +796,7 @@ let score = 0, combo = 0, cityIndex = 0, lives = 3;
 let curColor = 0, nextColor = 0;
 let angle = Math.PI / 2;
 let mouseX = 400, mouseY = 400;
+let contentScale = 1, contentOffsetX = 0, contentOffsetY = 0;
 let running = false;
 let nextId = 0;
 let rollAccum = 0;
@@ -1036,6 +1078,14 @@ function getDirByArc(arc) {
     return len > 0 ? {x: dx/len, y: dy/len} : {x:0, y:1};
 }
 
+function toggleFullscreen() {
+    if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(() => {});
+    } else {
+        document.exitFullscreen().catch(() => {});
+    }
+}
+
 function shadeColor(hex, pct) {
     const num = parseInt(hex.replace('#',''), 16);
     const amt = Math.round(2.55 * pct);
@@ -1062,13 +1112,16 @@ function init() {
     document.getElementById('swapBtn').onclick = swapBall;
     document.getElementById('pauseBtn').onclick = togglePause;
     document.getElementById('shootBtn').onclick = shoot;
+    document.getElementById('fullscreenBtn').onclick = toggleFullscreen;
     document.getElementById('resumeBtn').onclick = resumeGame;
     document.getElementById('pauseMenuBtn').onclick = showMenu;
 
     canvas.addEventListener('mousemove', e => {
         const r = canvas.getBoundingClientRect();
-        mouseX = (e.clientX - r.left) * (CFG.W / r.width);
-        mouseY = (e.clientY - r.top) * (CFG.H / r.height);
+        const rawX = (e.clientX - r.left) * (canvas.width / r.width);
+        const rawY = (e.clientY - r.top) * (canvas.height / r.height);
+        mouseX = (rawX - contentOffsetX) / contentScale;
+        mouseY = (rawY - contentOffsetY) / contentScale;
         angle = Math.atan2(mouseY - CFG.FROG_Y, mouseX - CFG.FROG_X);
     });
 
@@ -1082,16 +1135,20 @@ function init() {
     canvas.addEventListener('touchmove', e => {
         e.preventDefault();
         const r = canvas.getBoundingClientRect();
-        mouseX = (e.touches[0].clientX - r.left) * (CFG.W / r.width);
-        mouseY = (e.touches[0].clientY - r.top) * (CFG.H / r.height);
+        const rawX = (e.touches[0].clientX - r.left) * (canvas.width / r.width);
+        const rawY = (e.touches[0].clientY - r.top) * (canvas.height / r.height);
+        mouseX = (rawX - contentOffsetX) / contentScale;
+        mouseY = (rawY - contentOffsetY) / contentScale;
         angle = Math.atan2(mouseY - CFG.FROG_Y, mouseX - CFG.FROG_X);
     }, {passive:false});
 
     canvas.addEventListener('touchstart', e => {
         e.preventDefault();
         const r = canvas.getBoundingClientRect();
-        mouseX = (e.touches[0].clientX - r.left) * (CFG.W / r.width);
-        mouseY = (e.touches[0].clientY - r.top) * (CFG.H / r.height);
+        const rawX = (e.touches[0].clientX - r.left) * (canvas.width / r.width);
+        const rawY = (e.touches[0].clientY - r.top) * (canvas.height / r.height);
+        mouseX = (rawX - contentOffsetX) / contentScale;
+        mouseY = (rawY - contentOffsetY) / contentScale;
         angle = Math.atan2(mouseY - CFG.FROG_Y, mouseX - CFG.FROG_X);
     }, {passive:false});
 
@@ -1147,19 +1204,30 @@ function resize() {
         if (isMobile) shootBtn.classList.add('visible');
         else shootBtn.classList.remove('visible');
     }
+    const fsBtn = document.getElementById('fullscreenBtn');
+    if (fsBtn) {
+        if (isMobile) fsBtn.classList.add('visible');
+        else fsBtn.classList.remove('visible');
+    }
     const margin = isMobile ? 0 : 16;
     const availW = vw - margin * 2;
     const availH = vh - margin * 2;
-    const scale = Math.min(availW / CFG.W, availH / CFG.H);
-    const w = Math.floor(CFG.W * scale);
-    const h = Math.floor(CFG.H * scale);
-    const newW = w + 'px', newH = h + 'px';
-    if (canvas.style.width !== newW || canvas.style.height !== newH) {
-        canvas.style.width = newW;
-        canvas.style.height = newH;
-        canvas.width = CFG.W;
-        canvas.height = CFG.H;
+
+    // 让 canvas CSS 和内部尺寸都填满可用空间，消除外部黑边
+    const cssW = Math.floor(availW);
+    const cssH = Math.floor(availH);
+    const newCssW = cssW + 'px', newCssH = cssH + 'px';
+    if (canvas.style.width !== newCssW || canvas.style.height !== newCssH) {
+        canvas.style.width = newCssW;
+        canvas.style.height = newCssH;
+        canvas.width = cssW;
+        canvas.height = cssH;
     }
+
+    // 计算游戏内容在 canvas 内部的缩放和偏移（contain 居中）
+    contentScale = Math.min(canvas.width / CFG.W, canvas.height / CFG.H);
+    contentOffsetX = (canvas.width - CFG.W * contentScale) / 2;
+    contentOffsetY = (canvas.height - CFG.H * contentScale) / 2;
 }
 
 function buildPath(lvl = 1) {
@@ -2071,8 +2139,52 @@ function updateHUD() {
 }
 
 // ===================== 渲染 =====================
+function drawExtendedBg() {
+    const city = getCity();
+    let topColor;
+    switch (city.theme) {
+        case 'egypt': topColor = '#2a2010'; break;
+        case 'babylon': topColor = '#0a1a0a'; break;
+        case 'china': topColor = '#1a0a0a'; break;
+        default: topColor = '#1a1208';
+    }
+    const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+    grad.addColorStop(0, topColor);
+    grad.addColorStop(1, '#0d0505');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // 两侧点缀一些微妙的星光/粒子，打破单调
+    ctx.save();
+    ctx.globalAlpha = 0.12;
+    const time = Date.now() / 2000;
+    const starCount = Math.min(60, Math.floor(canvas.width * canvas.height / 12000));
+    for (let i = 0; i < starCount; i++) {
+        const sx = ((i * 137.5 + time * 10) % canvas.width + canvas.width) % canvas.width;
+        const sy = ((i * 89.7 + Math.sin(time + i) * 20) % canvas.height + canvas.height) % canvas.height;
+        // 避开中央游戏区域
+        if (sx > contentOffsetX && sx < contentOffsetX + CFG.W * contentScale &&
+            sy > contentOffsetY && sy < contentOffsetY + CFG.H * contentScale) continue;
+        const ss = 0.8 + (i % 3) * 0.5;
+        const pulse = 0.5 + 0.5 * Math.sin(time * 3 + i);
+        ctx.globalAlpha = 0.08 * pulse;
+        ctx.fillStyle = (i % 2 === 0) ? '#ffd700' : '#ffffff';
+        ctx.beginPath();
+        ctx.arc(sx, sy, ss, 0, Math.PI * 2);
+        ctx.fill();
+    }
+    ctx.restore();
+}
+
 function draw() {
-    ctx.clearRect(0, 0, CFG.W, CFG.H);
+    // 1. 先画全屏延伸背景，填满 canvas 两侧/上下的空白区域
+    drawExtendedBg();
+
+    // 2. 在游戏内容坐标系中绘制核心画面
+    ctx.save();
+    ctx.translate(contentOffsetX, contentOffsetY);
+    ctx.scale(contentScale, contentScale);
+
     drawBg();
     drawPath();
     drawHole();
@@ -2115,6 +2227,8 @@ function draw() {
             drawBall(x, y, i % COLORS.length, 18, 1, 0);
         }
     }
+
+    ctx.restore();
 }
 
 function drawBg() {
@@ -3970,369 +4084,99 @@ function drawFrog() {
     ctx.translate(CFG.FROG_X, CFG.FROG_Y);
     ctx.rotate(angle + Math.PI/2);
 
-    // ===== 高质感祖玛青蛙：多层渐变阴影、浮雕纹理、立体宝石 =====
+    // === 封面同款卡通黄金蛙 ===
 
-    // 1. 贴地阴影（柔和扩散）
-    ctx.fillStyle = 'rgba(0,0,0,0.3)';
-    ctx.beginPath();
-    ctx.ellipse(0, 16, 66, 50, 0, 0, Math.PI*2);
-    ctx.fill();
+    // 底座阴影
+    ctx.fillStyle = 'rgba(0,0,0,0.22)';
+    ctx.beginPath(); ctx.ellipse(0, 20, 52, 16, 0, 0, Math.PI*2); ctx.fill();
 
-    // 2. 后腿（左）— 多层渐变制造圆柱体积感
-    const legLGrad = ctx.createRadialGradient(-52, 16, 4, -48, 22, 28);
-    legLGrad.addColorStop(0, '#7cb342');
-    legLGrad.addColorStop(0.6, '#558b2f');
-    legLGrad.addColorStop(1, '#33691e');
-    ctx.fillStyle = legLGrad;
-    ctx.beginPath();
-    ctx.ellipse(-48, 24, 28, 22, -0.5, 0, Math.PI*2);
-    ctx.fill();
-    ctx.strokeStyle = '#1b5e20';
-    ctx.lineWidth = 2.5;
-    ctx.stroke();
-    // 后腿高光
-    ctx.fillStyle = 'rgba(255,255,255,0.15)';
-    ctx.beginPath();
-    ctx.ellipse(-44, 18, 14, 8, -0.5, 0, Math.PI*2);
-    ctx.fill();
-    // 后脚掌
-    const footLGrad = ctx.createRadialGradient(-60, 10, 2, -58, 12, 14);
-    footLGrad.addColorStop(0, '#8bc34a');
-    footLGrad.addColorStop(1, '#33691e');
-    ctx.fillStyle = footLGrad;
-    ctx.beginPath();
-    ctx.ellipse(-60, 12, 15, 12, -0.3, 0, Math.PI*2);
-    ctx.fill();
-    ctx.strokeStyle = '#1b5e20';
-    ctx.lineWidth = 2;
-    ctx.stroke();
-    // 后脚爪（圆点，带高光）
-    for (let i = 0; i < 3; i++) {
-        const cx = -68 - i*4;
-        const cy = 16 + i*3;
-        ctx.fillStyle = '#aed581';
-        ctx.beginPath(); ctx.arc(cx, cy, 4.5, 0, Math.PI*2); ctx.fill();
-        ctx.fillStyle = '#33691e';
-        ctx.beginPath(); ctx.arc(cx+1, cy+1, 4.5, 0, Math.PI*2); ctx.fill();
-        ctx.fillStyle = '#c5e1a5';
-        ctx.beginPath(); ctx.arc(cx-0.5, cy-0.5, 3.5, 0, Math.PI*2); ctx.fill();
-    }
+    // 石座
+    const seatGrad = ctx.createLinearGradient(0, 10, 0, 26);
+    seatGrad.addColorStop(0, '#B8860B');
+    seatGrad.addColorStop(1, '#5A4018');
+    ctx.fillStyle = seatGrad;
+    ctx.beginPath(); ctx.ellipse(0, 16, 44, 12, 0, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = '#3d2b0f'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.ellipse(0, 16, 44, 12, 0, 0, Math.PI*2); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,0.12)';
+    ctx.beginPath(); ctx.ellipse(0, 13, 36, 5, 0, 0, Math.PI*2); ctx.fill();
 
-    // 3. 后腿（右）— 镜像
-    const legRGrad = ctx.createRadialGradient(52, 16, 4, 48, 22, 28);
-    legRGrad.addColorStop(0, '#7cb342');
-    legRGrad.addColorStop(0.6, '#558b2f');
-    legRGrad.addColorStop(1, '#33691e');
-    ctx.fillStyle = legRGrad;
-    ctx.beginPath();
-    ctx.ellipse(48, 24, 28, 22, 0.5, 0, Math.PI*2);
-    ctx.fill();
-    ctx.strokeStyle = '#1b5e20';
-    ctx.lineWidth = 2.5;
-    ctx.stroke();
-    ctx.fillStyle = 'rgba(255,255,255,0.15)';
-    ctx.beginPath();
-    ctx.ellipse(44, 18, 14, 8, 0.5, 0, Math.PI*2);
-    ctx.fill();
-    const footRGrad = ctx.createRadialGradient(60, 10, 2, 58, 12, 14);
-    footRGrad.addColorStop(0, '#8bc34a');
-    footRGrad.addColorStop(1, '#33691e');
-    ctx.fillStyle = footRGrad;
-    ctx.beginPath();
-    ctx.ellipse(60, 12, 15, 12, 0.3, 0, Math.PI*2);
-    ctx.fill();
-    ctx.strokeStyle = '#1b5e20';
-    ctx.lineWidth = 2;
-    ctx.stroke();
-    for (let i = 0; i < 3; i++) {
-        const cx = 68 + i*4;
-        const cy = 16 + i*3;
-        ctx.fillStyle = '#aed581';
-        ctx.beginPath(); ctx.arc(cx, cy, 4.5, 0, Math.PI*2); ctx.fill();
-        ctx.fillStyle = '#33691e';
-        ctx.beginPath(); ctx.arc(cx-1, cy+1, 4.5, 0, Math.PI*2); ctx.fill();
-        ctx.fillStyle = '#c5e1a5';
-        ctx.beginPath(); ctx.arc(cx+0.5, cy-0.5, 3.5, 0, Math.PI*2); ctx.fill();
-    }
+    // 后腿（小圆脚）
+    ctx.fillStyle = '#D4A017';
+    ctx.beginPath(); ctx.ellipse(-40, 12, 14, 10, -0.3, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(40, 12, 14, 10, 0.3, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = '#B8860B'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.ellipse(-40, 12, 14, 10, -0.3, 0, Math.PI*2); ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(40, 12, 14, 10, 0.3, 0, Math.PI*2); ctx.stroke();
 
-    // 4. 身体 — 大体积径向渐变 + 肚皮高光
-    const bodyGrad = ctx.createRadialGradient(-14, -2, 12, 0, 8, 60);
-    bodyGrad.addColorStop(0, '#dcedc8');
-    bodyGrad.addColorStop(0.3, '#c5e1a5');
-    bodyGrad.addColorStop(0.6, '#aed581');
-    bodyGrad.addColorStop(0.85, '#8bc34a');
-    bodyGrad.addColorStop(1, '#689f38');
+    // 身体（圆滚滚黄金球）
+    const bodyGrad = ctx.createRadialGradient(-6, -2, 6, 0, 2, 40);
+    bodyGrad.addColorStop(0, '#FFF0A0');
+    bodyGrad.addColorStop(0.35, '#FFD700');
+    bodyGrad.addColorStop(0.75, '#E6B800');
+    bodyGrad.addColorStop(1, '#C69500');
     ctx.fillStyle = bodyGrad;
-    ctx.beginPath();
-    ctx.ellipse(0, 10, 54, 44, 0, 0, Math.PI*2);
-    ctx.fill();
-    // 身体深色描边（让轮廓清晰）
-    ctx.strokeStyle = '#1b5e20';
-    ctx.lineWidth = 3;
-    ctx.stroke();
-    // 身体侧腹阴影（增加浑圆感）
-    ctx.fillStyle = 'rgba(0,0,0,0.12)';
-    ctx.beginPath();
-    ctx.ellipse(-36, 12, 14, 22, 0.3, 0, Math.PI*2);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.ellipse(36, 12, 14, 22, -0.3, 0, Math.PI*2);
-    ctx.fill();
-    // 肚皮高光
-    ctx.fillStyle = 'rgba(255,255,255,0.25)';
-    ctx.beginPath();
-    ctx.ellipse(0, 18, 28, 18, 0, 0, Math.PI*2);
-    ctx.fill();
+    ctx.beginPath(); ctx.ellipse(0, 0, 38, 30, 0, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = '#B8860B'; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.ellipse(0, 0, 38, 30, 0, 0, Math.PI*2); ctx.stroke();
+    // 肚皮
+    ctx.fillStyle = 'rgba(255,255,255,0.28)';
+    ctx.beginPath(); ctx.ellipse(0, 6, 22, 16, 0, 0, Math.PI*2); ctx.fill();
 
-    // 身体两侧浮雕卷曲纹（有明暗的立体感）
-    ctx.save();
-    ctx.shadowColor = 'rgba(0,0,0,0.3)';
-    ctx.shadowBlur = 3;
-    ctx.shadowOffsetX = 1;
-    ctx.strokeStyle = '#1b5e20';
-    ctx.lineWidth = 4;
-    ctx.lineCap = 'round';
-    ctx.beginPath(); ctx.arc(-48, -2, 16, -0.3, 1.3, true); ctx.stroke();
-    ctx.beginPath(); ctx.arc(-54, 4, 9, 0, 1.5, false); ctx.stroke();
-    ctx.beginPath(); ctx.arc(48, -2, 16, Math.PI-1.3, Math.PI+0.3, false); ctx.stroke();
-    ctx.beginPath(); ctx.arc(54, 4, 9, Math.PI-1.5, Math.PI, true); ctx.stroke();
-    ctx.restore();
-    // 卷曲纹内侧高光
-    ctx.strokeStyle = 'rgba(255,255,255,0.25)';
-    ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.arc(-48, -2, 16, -0.3, 1.3, true); ctx.stroke();
-    ctx.beginPath(); ctx.arc(48, -2, 16, Math.PI-1.3, Math.PI+0.3, false); ctx.stroke();
-
-    // 5. 头部 — 更宽大，多层渐变 + 脸颊鼓出
-    const headGrad = ctx.createRadialGradient(-10, -28, 15, 0, -30, 56);
-    headGrad.addColorStop(0, '#e8f5e9');
-    headGrad.addColorStop(0.25, '#dcedc8');
-    headGrad.addColorStop(0.5, '#c5e1a5');
-    headGrad.addColorStop(0.75, '#aed581');
-    headGrad.addColorStop(1, '#7cb342');
+    // 头部（更大更圆）
+    const headGrad = ctx.createRadialGradient(-4, -30, 10, 0, -26, 48);
+    headGrad.addColorStop(0, '#FFF5C2');
+    headGrad.addColorStop(0.3, '#FFE066');
+    headGrad.addColorStop(0.65, '#FFD700');
+    headGrad.addColorStop(1, '#D4A017');
     ctx.fillStyle = headGrad;
-    ctx.beginPath();
-    ctx.ellipse(0, -28, 54, 46, 0, 0, Math.PI*2);
-    ctx.fill();
-    ctx.strokeStyle = '#1b5e20';
-    ctx.lineWidth = 3;
-    ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(0, -24, 46, 38, 0, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = '#B8860B'; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.ellipse(0, -24, 46, 38, 0, 0, Math.PI*2); ctx.stroke();
+    // 脸颊红晕
+    ctx.fillStyle = 'rgba(255,150,100,0.15)';
+    ctx.beginPath(); ctx.ellipse(-26, -18, 10, 7, -0.2, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(26, -18, 10, 7, 0.2, 0, Math.PI*2); ctx.fill();
 
-    // 脸颊鼓出高光（参考图饱满的腮帮子）
-    ctx.fillStyle = 'rgba(255,255,255,0.22)';
-    ctx.beginPath();
-    ctx.ellipse(-28, -20, 18, 14, -0.3, 0, Math.PI*2);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.ellipse(28, -20, 18, 14, 0.3, 0, Math.PI*2);
-    ctx.fill();
-
-    // 6. 额头图腾 — 先刻凹槽再填色，制造浮雕感
-    // 凹槽底（深色阴影）
-    ctx.strokeStyle = 'rgba(0,0,0,0.35)';
-    ctx.lineWidth = 5;
-    ctx.lineCap = 'round';
-    ctx.beginPath(); ctx.moveTo(0, -62); ctx.lineTo(0, -36); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(-18, -56); ctx.quadraticCurveTo(-8, -46, -18, -34); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(18, -56); ctx.quadraticCurveTo(8, -46, 18, -34); ctx.stroke();
-    // 图腾亮色线（浮雕凸起感）
-    ctx.strokeStyle = '#1b5e20';
-    ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.moveTo(0, -62); ctx.lineTo(0, -36); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(-18, -56); ctx.quadraticCurveTo(-8, -46, -18, -34); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(18, -56); ctx.quadraticCurveTo(8, -46, 18, -34); ctx.stroke();
-    // 眉心三角凹槽+填色
-    ctx.fillStyle = 'rgba(0,0,0,0.25)';
-    ctx.beginPath();
-    ctx.moveTo(0, -52); ctx.lineTo(-12, -36); ctx.lineTo(12, -36); ctx.closePath(); ctx.fill();
-    ctx.fillStyle = '#2e7d32';
-    ctx.beginPath();
-    ctx.moveTo(0, -50); ctx.lineTo(-10, -36); ctx.lineTo(10, -36); ctx.closePath(); ctx.fill();
-    ctx.fillStyle = '#4caf50';
-    ctx.beginPath();
-    ctx.moveTo(0, -48); ctx.lineTo(-7, -37); ctx.lineTo(7, -37); ctx.closePath(); ctx.fill();
-    // 额头横向纹
-    ctx.strokeStyle = '#1b5e20';
-    ctx.lineWidth = 2.5;
-    ctx.beginPath(); ctx.moveTo(-14, -54); ctx.lineTo(14, -54); ctx.stroke();
-    ctx.strokeStyle = 'rgba(255,255,255,0.2)';
-    ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(-14, -55); ctx.lineTo(14, -55); ctx.stroke();
-
-    // 7. 头顶紫色宝石 — 多层立体：底座+宝石本体+高光+反光+金边
-    // 宝石底座（嵌入头顶的凹槽）
-    ctx.fillStyle = '#2e7d32';
-    ctx.beginPath(); ctx.ellipse(0, -64, 20, 10, 0, 0, Math.PI*2); ctx.fill();
-    ctx.fillStyle = 'rgba(0,0,0,0.3)';
-    ctx.beginPath(); ctx.ellipse(0, -62, 20, 10, 0, 0, Math.PI*2); ctx.fill();
-    // 宝石本体（强光泽径向渐变）
-    const gemGrad = ctx.createRadialGradient(-5, -68, 2, 0, -64, 18);
-    gemGrad.addColorStop(0, '#ffffff');
-    gemGrad.addColorStop(0.15, '#e1bee7');
-    gemGrad.addColorStop(0.4, '#ce93d8');
-    gemGrad.addColorStop(0.7, '#ab47bc');
-    gemGrad.addColorStop(0.9, '#7b1fa2');
-    gemGrad.addColorStop(1, '#4a148c');
+    // 额头红色宝石（封面同款）
+    ctx.fillStyle = '#D4A017';
+    ctx.beginPath(); ctx.ellipse(0, -56, 12, 7, 0, 0, Math.PI*2); ctx.fill();
+    const gemGrad = ctx.createRadialGradient(-2, -60, 1, 0, -58, 8);
+    gemGrad.addColorStop(0, '#FF8585');
+    gemGrad.addColorStop(0.5, '#EE4444');
+    gemGrad.addColorStop(1, '#C0392B');
     ctx.fillStyle = gemGrad;
-    ctx.beginPath();
-    ctx.arc(0, -64, 16, 0, Math.PI*2);
-    ctx.fill();
-    // 宝石底部反光（环境光）
-    ctx.fillStyle = 'rgba(255,255,255,0.15)';
-    ctx.beginPath(); ctx.arc(0, -58, 10, 0, Math.PI, false); ctx.fill();
-    // 宝石主高光
+    ctx.beginPath(); ctx.arc(0, -58, 7, 0, Math.PI*2); ctx.fill();
     ctx.fillStyle = 'rgba(255,255,255,0.8)';
-    ctx.beginPath(); ctx.arc(-6, -72, 6, 0, Math.PI*2); ctx.fill();
-    // 宝石次高光
-    ctx.fillStyle = 'rgba(255,255,255,0.35)';
-    ctx.beginPath(); ctx.arc(6, -60, 3.5, 0, Math.PI*2); ctx.fill();
-    // 宝石厚金边
-    ctx.strokeStyle = '#fbc02d';
-    ctx.lineWidth = 4;
-    ctx.beginPath(); ctx.arc(0, -64, 16, 0, Math.PI*2); ctx.stroke();
-    ctx.strokeStyle = '#f9a825';
-    ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.arc(0, -64, 14, 0, Math.PI*2); ctx.stroke();
-    // 金边内侧阴影
-    ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+    ctx.beginPath(); ctx.arc(-2, -61, 2.5, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = '#FFD700'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(0, -58, 7, 0, Math.PI*2); ctx.stroke();
+
+    // 超大可爱眼睛
+    drawCuteEye(-22, -38);
+    drawCuteEye(22, -38);
+
+    // 张开的嘴巴（深色口腔，让球看起来像含在嘴里）
+    ctx.fillStyle = '#5A3010';
+    ctx.beginPath(); ctx.ellipse(0, -46, 15, 11, 0, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = '#8B4513';
+    ctx.lineWidth = 2.5; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.arc(0, -48, 13, 0.3, Math.PI - 0.3); ctx.stroke();
+    // 上嘴唇高光
+    ctx.strokeStyle = 'rgba(255,255,255,0.25)';
     ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.arc(0, -64, 17, 0, Math.PI*2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(0, -49, 12, 0.3, Math.PI - 0.3); ctx.stroke();
 
-    // 8. 眼睛 —  socket阴影 + 眼球隆起 + 多层高光
-    // 眼窝凹陷阴影
-    ctx.fillStyle = 'rgba(0,0,0,0.2)';
-    ctx.beginPath(); ctx.ellipse(-30, -44, 22, 20, -0.1, 0, Math.PI*2); ctx.fill();
-    ctx.beginPath(); ctx.ellipse(30, -44, 22, 20, 0.1, 0, Math.PI*2); ctx.fill();
-    // 眼球包（黄绿色隆起）
-    const eyeBagGradL = ctx.createRadialGradient(-34, -50, 4, -30, -44, 22);
-    eyeBagGradL.addColorStop(0, '#c5e1a5');
-    eyeBagGradL.addColorStop(0.7, '#8bc34a');
-    eyeBagGradL.addColorStop(1, '#558b2f');
-    ctx.fillStyle = eyeBagGradL;
-    ctx.beginPath(); ctx.ellipse(-30, -44, 22, 20, -0.1, 0, Math.PI*2); ctx.fill();
-    ctx.strokeStyle = '#1b5e20';
-    ctx.lineWidth = 2.5;
-    ctx.stroke();
-    const eyeBagGradR = ctx.createRadialGradient(34, -50, 4, 30, -44, 22);
-    eyeBagGradR.addColorStop(0, '#c5e1a5');
-    eyeBagGradR.addColorStop(0.7, '#8bc34a');
-    eyeBagGradR.addColorStop(1, '#558b2f');
-    ctx.fillStyle = eyeBagGradR;
-    ctx.beginPath(); ctx.ellipse(30, -44, 22, 20, 0.1, 0, Math.PI*2); ctx.fill();
-    ctx.strokeStyle = '#1b5e20';
-    ctx.lineWidth = 2.5;
-    ctx.stroke();
+    // 前肢
+    ctx.fillStyle = '#FFD700';
+    ctx.beginPath(); ctx.ellipse(-34, -4, 11, 9, -0.4, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(34, -4, 11, 9, 0.4, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = '#B8860B'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.ellipse(-34, -4, 11, 9, -0.4, 0, Math.PI*2); ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(34, -4, 11, 9, 0.4, 0, Math.PI*2); ctx.stroke();
 
-    // 眼白（带轻微渐变，不是死白）
-    const scleraGrad = ctx.createRadialGradient(0, -4, 2, 0, 0, 14);
-    scleraGrad.addColorStop(0, '#ffffff');
-    scleraGrad.addColorStop(0.85, '#f5f5f5');
-    scleraGrad.addColorStop(1, '#e0e0e0');
-    ctx.fillStyle = scleraGrad;
-    ctx.beginPath(); ctx.arc(-30, -46, 14, 0, Math.PI*2); ctx.fill();
-    ctx.beginPath(); ctx.arc(30, -46, 14, 0, Math.PI*2); ctx.fill();
-    ctx.strokeStyle = '#1b5e20';
-    ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.arc(-30, -46, 14, 0, Math.PI*2); ctx.stroke();
-    ctx.beginPath(); ctx.arc(30, -46, 14, 0, Math.PI*2); ctx.stroke();
-
-    // 瞳孔（深绿外圈+黑色内芯）
-    const irisGrad = ctx.createRadialGradient(0, 0, 2, 0, 0, 8);
-    irisGrad.addColorStop(0, '#66bb6a');
-    irisGrad.addColorStop(0.5, '#2e7d32');
-    irisGrad.addColorStop(1, '#1b5e20');
-    ctx.fillStyle = irisGrad;
-    ctx.beginPath(); ctx.arc(-30, -46, 8, 0, Math.PI*2); ctx.fill();
-    ctx.beginPath(); ctx.arc(30, -46, 8, 0, Math.PI*2); ctx.fill();
-    ctx.fillStyle = '#000000';
-    ctx.beginPath(); ctx.arc(-30, -46, 4, 0, Math.PI*2); ctx.fill();
-    ctx.beginPath(); ctx.arc(30, -46, 4, 0, Math.PI*2); ctx.fill();
-    // 瞳孔高光（玻璃质感）
-    ctx.fillStyle = 'rgba(255,255,255,0.9)';
-    ctx.beginPath(); ctx.arc(-34, -50, 4.5, 0, Math.PI*2); ctx.fill();
-    ctx.beginPath(); ctx.arc(26, -50, 4.5, 0, Math.PI*2); ctx.fill();
-    ctx.fillStyle = 'rgba(255,255,255,0.4)';
-    ctx.beginPath(); ctx.arc(-27, -43, 2.5, 0, Math.PI*2); ctx.fill();
-    ctx.beginPath(); ctx.arc(33, -43, 2.5, 0, Math.PI*2); ctx.fill();
-
-    // 9. 嘴巴 — 张开的立体口腔
-    // 口腔外阴影
-    ctx.fillStyle = 'rgba(0,0,0,0.35)';
-    ctx.beginPath(); ctx.ellipse(0, -62, 32, 26, 0, 0, Math.PI*2); ctx.fill();
-    // 口腔内壁（深紫红）
-    ctx.fillStyle = '#4a0e4e';
-    ctx.beginPath(); ctx.ellipse(0, -62, 30, 24, 0, 0, Math.PI*2); ctx.fill();
-    // 口腔深处（更暗）
-    ctx.fillStyle = '#2d0630';
-    ctx.beginPath(); ctx.ellipse(0, -60, 24, 18, 0, 0, Math.PI*2); ctx.fill();
-    // 舌头（亮紫色带高光）
-    const tongueGrad = ctx.createRadialGradient(0, -66, 2, 0, -62, 14);
-    tongueGrad.addColorStop(0, '#ce93d8');
-    tongueGrad.addColorStop(0.6, '#8e24aa');
-    tongueGrad.addColorStop(1, '#4a148c');
-    ctx.fillStyle = tongueGrad;
-    ctx.beginPath(); ctx.ellipse(0, -62, 14, 12, 0, 0, Math.PI*2); ctx.fill();
-    ctx.fillStyle = 'rgba(255,255,255,0.2)';
-    ctx.beginPath(); ctx.ellipse(-4, -66, 5, 3, 0, 0, Math.PI*2); ctx.fill();
-
-    // 嘴里含的球
-    drawBall(0, -62, curColor, CFG.BALL_R * 0.92, 1, 0);
-
-    // 嘴唇（厚实，多层：阴影+主体+高光）
-    ctx.fillStyle = '#689f38';
-    ctx.beginPath(); ctx.ellipse(0, -74, 34, 15, 0, 0, Math.PI); ctx.fill();
-    ctx.fillStyle = '#aed581';
-    ctx.beginPath(); ctx.ellipse(0, -74, 32, 13, 0, 0, Math.PI); ctx.fill();
-    ctx.fillStyle = '#c5e1a5';
-    ctx.beginPath(); ctx.ellipse(0, -76, 28, 10, 0, 0, Math.PI); ctx.fill();
-    // 嘴唇高光
-    ctx.fillStyle = 'rgba(255,255,255,0.25)';
-    ctx.beginPath(); ctx.ellipse(-10, -78, 10, 4, 0, 0, Math.PI); ctx.fill();
-    // 嘴唇轮廓
-    ctx.strokeStyle = '#1b5e20';
-    ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.arc(0, -68, 33, -0.3, Math.PI + 0.3); ctx.stroke();
-
-    // 10. 前肢（左）— 立体圆柱感
-    const armLGrad = ctx.createRadialGradient(-48, -18, 3, -44, -14, 16);
-    armLGrad.addColorStop(0, '#8bc34a');
-    armLGrad.addColorStop(1, '#33691e');
-    ctx.fillStyle = armLGrad;
-    ctx.beginPath(); ctx.ellipse(-44, -14, 14, 12, -0.5, 0, Math.PI*2); ctx.fill();
-    ctx.strokeStyle = '#1b5e20';
-    ctx.lineWidth = 2.5;
-    ctx.stroke();
-    // 前脚爪
-    for (let i = 0; i < 3; i++) {
-        const cx = -54 - i*4;
-        const cy = -20 + i*3;
-        ctx.fillStyle = '#aed581';
-        ctx.beginPath(); ctx.arc(cx, cy, 4.5, 0, Math.PI*2); ctx.fill();
-        ctx.fillStyle = '#33691e';
-        ctx.beginPath(); ctx.arc(cx+1, cy+1, 4.5, 0, Math.PI*2); ctx.fill();
-        ctx.fillStyle = '#c5e1a5';
-        ctx.beginPath(); ctx.arc(cx-0.5, cy-0.5, 3.5, 0, Math.PI*2); ctx.fill();
-    }
-
-    // 11. 前肢（右）
-    const armRGrad = ctx.createRadialGradient(48, -18, 3, 44, -14, 16);
-    armRGrad.addColorStop(0, '#8bc34a');
-    armRGrad.addColorStop(1, '#33691e');
-    ctx.fillStyle = armRGrad;
-    ctx.beginPath(); ctx.ellipse(44, -14, 14, 12, 0.5, 0, Math.PI*2); ctx.fill();
-    ctx.strokeStyle = '#1b5e20';
-    ctx.lineWidth = 2.5;
-    ctx.stroke();
-    for (let i = 0; i < 3; i++) {
-        const cx = 54 + i*4;
-        const cy = -20 + i*3;
-        ctx.fillStyle = '#aed581';
-        ctx.beginPath(); ctx.arc(cx, cy, 4.5, 0, Math.PI*2); ctx.fill();
-        ctx.fillStyle = '#33691e';
-        ctx.beginPath(); ctx.arc(cx-1, cy+1, 4.5, 0, Math.PI*2); ctx.fill();
-        ctx.fillStyle = '#c5e1a5';
-        ctx.beginPath(); ctx.arc(cx+0.5, cy-0.5, 3.5, 0, Math.PI*2); ctx.fill();
-    }
+    // 嘴里的球（在口腔深处，看起来像含着）
+    drawBall(0, -54, curColor, CFG.BALL_R * 0.92, 1, 0);
 
     ctx.restore();
 
@@ -4340,6 +4184,26 @@ function drawFrog() {
     const nx = CFG.FROG_X + Math.cos(angle + Math.PI) * 42;
     const ny = CFG.FROG_Y + Math.sin(angle + Math.PI) * 42;
     drawBall(nx, ny, nextColor, CFG.BALL_R * 0.72, 1, 0);
+}
+
+function drawCuteEye(x, y) {
+    // 眼白
+    ctx.fillStyle = '#FFFFFF';
+    ctx.beginPath(); ctx.arc(x, y, 15, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = '#B8860B'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(x, y, 15, 0, Math.PI*2); ctx.stroke();
+    // 瞳孔
+    ctx.fillStyle = '#1a1a1a';
+    ctx.beginPath(); ctx.arc(x + 1, y + 1, 8.5, 0, Math.PI*2); ctx.fill();
+    // 主高光
+    ctx.fillStyle = '#FFFFFF';
+    ctx.beginPath(); ctx.arc(x - 4, y - 5, 4.5, 0, Math.PI*2); ctx.fill();
+    // 次高光
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.beginPath(); ctx.arc(x + 5, y + 3, 2, 0, Math.PI*2); ctx.fill();
+    // 小眉毛
+    ctx.strokeStyle = '#B8860B'; ctx.lineWidth = 2; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.arc(x, y - 13, 9, -0.3, Math.PI + 0.3, true); ctx.stroke();
 }
 
 function drawStar(x, y, r, points, rot) {
