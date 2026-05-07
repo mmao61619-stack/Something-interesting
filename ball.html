@@ -550,29 +550,29 @@
                 width: 56px;
                 height: 56px;
                 font-size: 24px;
-                bottom: 8px;
-                right: 8px;
+                bottom: 18px;
+                right: 18px;
             }
             #pauseBtn {
                 width: 42px;
                 height: 42px;
                 font-size: 18px;
-                top: 6px;
-                right: 6px;
+                top: 16px;
+                right: 16px;
             }
             #fullscreenBtn {
                 width: 42px;
                 height: 42px;
                 font-size: 18px;
-                top: 6px;
-                left: 6px;
+                top: 16px;
+                left: 16px;
             }
             #shootBtn {
                 width: 56px;
                 height: 56px;
                 font-size: 14px;
-                bottom: 8px;
-                left: 8px;
+                bottom: 18px;
+                left: 18px;
             }
         }
         @media (max-width: 400px) {
@@ -616,8 +616,8 @@
                 width: 38px;
                 height: 38px;
                 font-size: 14px;
-                top: 4px;
-                left: 4px;
+                top: 14px;
+                left: 14px;
             }
             .map-world {
                 height: min(280px, 38vh);
@@ -1079,10 +1079,18 @@ function getDirByArc(arc) {
 }
 
 function toggleFullscreen() {
-    if (!document.fullscreenElement) {
-        document.documentElement.requestFullscreen().catch(() => {});
-    } else {
-        document.exitFullscreen().catch(() => {});
+    const docEl = document.documentElement;
+    const req = docEl.requestFullscreen || docEl.webkitRequestFullscreen || docEl.mozRequestFullScreen || docEl.msRequestFullscreen;
+    const exit = document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen || document.msExitFullscreen;
+    const isFS = document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement;
+    if (!isFS) {
+        if (req) {
+            req.call(docEl).catch(() => {});
+        } else {
+            alert('您的浏览器不支持网页全屏。\n\niPhone 用户请用 Safari 打开，点击底部分享按钮 → "添加到主屏幕"，然后从桌面图标进入即可全屏。\n\nAndroid 用户请换 Chrome 浏览器打开。');
+        }
+    } else if (exit) {
+        exit.call(document).catch(() => {});
     }
 }
 
