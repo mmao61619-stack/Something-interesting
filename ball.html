@@ -2,10 +2,11 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>祖玛 - Zuma Web Edition</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { overflow: hidden; height: 100%; }
         body {
             background: #0d0505;
             overflow: hidden;
@@ -13,10 +14,12 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            height: 100vh;
             font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
             user-select: none;
             padding: 0;
+            touch-action: none;
+            overscroll-behavior: none;
+            -webkit-overflow-scrolling: auto;
         }
         #gameWrapper {
             position: relative;
@@ -25,10 +28,17 @@
             box-shadow: 0 0 60px rgba(139, 69, 19, 0.4);
             max-width: 100%;
             max-height: 100%;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
         canvas {
             display: block;
             cursor: crosshair;
+            touch-action: none;
+            -webkit-tap-highlight-color: transparent;
         }
 
         /* ===== 覆盖层基础 ===== */
@@ -185,6 +195,7 @@
             width: 96%;
             max-height: 92vh;
             overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
             position: relative;
             box-shadow:
                 0 0 0 2px #5a4018,
@@ -366,6 +377,8 @@
             left: 50%;
             transform: translateX(-50%);
             display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
             gap: 30px;
             color: #ffe4a0;
             font-size: 15px;
@@ -406,6 +419,34 @@
         }
         #swapBtn:active { transform: scale(0.92); background: rgba(30, 20, 8, 0.75); }
 
+        /* ===== 发射按钮 ===== */
+        #shootBtn {
+            position: absolute;
+            bottom: 14px;
+            left: 14px;
+            width: 52px;
+            height: 52px;
+            border-radius: 50%;
+            background: rgba(10, 6, 2, 0.55);
+            border: 2px solid rgba(184, 150, 58, 0.55);
+            color: #ffd700;
+            font-size: 13px;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 6;
+            backdrop-filter: blur(2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.35);
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+            transition: transform 0.1s ease, background 0.2s ease;
+            font-weight: bold;
+            letter-spacing: 1px;
+        }
+        #shootBtn:active { transform: scale(0.92); background: rgba(30, 20, 8, 0.75); }
+        #shootBtn.visible { display: flex; }
+
         /* ===== 暂停按钮 ===== */
         #pauseBtn {
             position: absolute;
@@ -431,11 +472,126 @@
         }
         #pauseBtn:active { transform: scale(0.92); }
         #pauseBtn.visible { display: flex; }
+
+        /* ===== 移动端适配 ===== */
+        @media (max-width: 768px) {
+            .stone-card {
+                padding: 24px 20px;
+                max-width: 94vw;
+                width: 94vw;
+            }
+            .ui-overlay h1 {
+                font-size: 42px;
+                letter-spacing: 6px;
+            }
+            .ui-overlay h2 {
+                font-size: 26px;
+                letter-spacing: 2px;
+            }
+            .ui-overlay p {
+                font-size: 14px;
+            }
+            .btn {
+                padding: 12px 32px;
+                font-size: 16px;
+                letter-spacing: 2px;
+            }
+            .egypt-divider::before, .egypt-divider::after {
+                width: 36px;
+            }
+            .map-container {
+                padding: 12px 14px;
+                max-width: 98vw;
+                width: 98vw;
+            }
+            .map-act-title {
+                font-size: 18px;
+                letter-spacing: 3px;
+            }
+            .map-city-name {
+                font-size: 18px;
+            }
+            .map-city-desc {
+                font-size: 13px;
+            }
+            #hud {
+                gap: 14px;
+                padding: 5px 14px;
+                font-size: 13px;
+                border-radius: 18px;
+            }
+            #swapBtn {
+                width: 56px;
+                height: 56px;
+                font-size: 24px;
+                bottom: 8px;
+                right: 8px;
+            }
+            #pauseBtn {
+                width: 42px;
+                height: 42px;
+                font-size: 18px;
+                top: 6px;
+                right: 6px;
+            }
+            #shootBtn {
+                width: 56px;
+                height: 56px;
+                font-size: 14px;
+                bottom: 8px;
+                left: 8px;
+            }
+        }
+        @media (max-width: 400px) {
+            .ui-overlay h1 {
+                font-size: 32px;
+                letter-spacing: 4px;
+            }
+            .ui-overlay h2 {
+                font-size: 22px;
+            }
+            .ui-overlay p {
+                font-size: 12px;
+            }
+            .btn {
+                padding: 10px 24px;
+                font-size: 14px;
+            }
+            .egypt-divider {
+                margin: 10px 0;
+                font-size: 16px;
+            }
+            .egypt-divider::before, .egypt-divider::after {
+                width: 24px;
+            }
+            #hud {
+                gap: 10px;
+                padding: 4px 10px;
+                font-size: 11px;
+            }
+            #swapBtn {
+                width: 50px;
+                height: 50px;
+                font-size: 20px;
+            }
+            #shootBtn {
+                width: 50px;
+                height: 50px;
+                font-size: 12px;
+            }
+            .map-world {
+                height: min(280px, 38vh);
+            }
+            .score-big {
+                font-size: 24px;
+            }
+        }
+
     </style>
 </head>
 <body>
 <div id="gameWrapper">
-    <canvas id="gameCanvas"></canvas>
+    <canvas id="gameCanvas" width="960" height="640"></canvas>
     <div id="hud">
         <div>分数: <span id="scoreVal">0</span></div>
         <div>连击: <span id="comboVal">0</span></div>
@@ -445,6 +601,7 @@
     </div>
     <button id="pauseBtn">⏸</button>
     <button id="swapBtn">⇄</button>
+    <button id="shootBtn">发射</button>
 
     <div id="menuOverlay" class="ui-overlay active">
         <div class="stone-card">
@@ -904,6 +1061,7 @@ function init() {
     document.getElementById('victoryMenuBtn').onclick = showMenu;
     document.getElementById('swapBtn').onclick = swapBall;
     document.getElementById('pauseBtn').onclick = togglePause;
+    document.getElementById('shootBtn').onclick = shoot;
     document.getElementById('resumeBtn').onclick = resumeGame;
     document.getElementById('pauseMenuBtn').onclick = showMenu;
 
@@ -935,7 +1093,6 @@ function init() {
         mouseX = (e.touches[0].clientX - r.left) * (CFG.W / r.width);
         mouseY = (e.touches[0].clientY - r.top) * (CFG.H / r.height);
         angle = Math.atan2(mouseY - CFG.FROG_Y, mouseX - CFG.FROG_X);
-        shoot();
     }, {passive:false});
 
     window.addEventListener('keydown', e => {
@@ -944,21 +1101,65 @@ function init() {
     });
 
     window.addEventListener('resize', resize);
+    // visualViewport 能准确反映去掉地址栏/工具栏后的真实可视区域（iOS Safari / Chrome Android 均支持）
+    if (window.visualViewport) {
+        window.visualViewport.addEventListener('resize', resize);
+        window.visualViewport.addEventListener('scroll', resize);
+    }
+    // 方向切换兜底：部分浏览器转屏后 innerWidth/Height 很久才更新，多轮延迟保险
+    window.addEventListener('orientationchange', () => {
+        [100, 300, 600, 1000, 1500].forEach(d => setTimeout(resize, d));
+    });
+    // 尝试解除屏幕方向锁定（部分安卓浏览器有效）
+    if (screen.orientation && screen.orientation.unlock) {
+        try { screen.orientation.unlock(); } catch (e) {}
+    }
+    const portraitMql = window.matchMedia('(orientation: portrait)');
+    const onOrientChange = () => setTimeout(resize, 150);
+    if (portraitMql.addEventListener) portraitMql.addEventListener('change', onOrientChange);
+    else if (portraitMql.addListener) portraitMql.addListener(onOrientChange);
+    // 轮询兜底（用 visualViewport 尺寸优先）
+    const getPollSize = () => {
+        const vv = window.visualViewport;
+        return vv ? { w: Math.round(vv.width), h: Math.round(vv.height) } : { w: window.innerWidth, h: window.innerHeight };
+    };
+    let lastPoll = getPollSize();
+    setInterval(() => {
+        const cur = getPollSize();
+        if (cur.w !== lastPoll.w || cur.h !== lastPoll.h) { lastPoll = cur; resize(); }
+    }, 300);
     requestAnimationFrame(loop);
 }
 
 function resize() {
-    const margin = 40;
-    const scale = Math.min(
-        (window.innerWidth - margin) / CFG.W,
-        (window.innerHeight - margin) / CFG.H
-    );
+    const vv = window.visualViewport;
+    const vw = vv ? Math.round(vv.width) : window.innerWidth;
+    const vh = vv ? Math.round(vv.height) : window.innerHeight;
+
+    // 用 JS 严格把 body 锁定为当前可视区域，彻底绕开移动端 100vh 包含地址栏的问题
+    document.documentElement.style.height = vh + 'px';
+    document.body.style.height = vh + 'px';
+    document.body.style.width = vw + 'px';
+
+    const isMobile = vw < 768 || vh < 600;
+    const shootBtn = document.getElementById('shootBtn');
+    if (shootBtn) {
+        if (isMobile) shootBtn.classList.add('visible');
+        else shootBtn.classList.remove('visible');
+    }
+    const margin = isMobile ? 0 : 16;
+    const availW = vw - margin * 2;
+    const availH = vh - margin * 2;
+    const scale = Math.min(availW / CFG.W, availH / CFG.H);
     const w = Math.floor(CFG.W * scale);
     const h = Math.floor(CFG.H * scale);
-    canvas.style.width = w + 'px';
-    canvas.style.height = h + 'px';
-    canvas.width = CFG.W;
-    canvas.height = CFG.H;
+    const newW = w + 'px', newH = h + 'px';
+    if (canvas.style.width !== newW || canvas.style.height !== newH) {
+        canvas.style.width = newW;
+        canvas.style.height = newH;
+        canvas.width = CFG.W;
+        canvas.height = CFG.H;
+    }
 }
 
 function buildPath(lvl = 1) {
