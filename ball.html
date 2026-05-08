@@ -1132,6 +1132,8 @@ function init() {
 
     canvas.addEventListener('contextmenu', e => e.preventDefault());
 
+    let touchStartX = 0, touchStartY = 0, touchStartTime = 0, touchMoved = false, touchShootTimer = null;
+
     canvas.addEventListener('touchmove', e => {
         e.preventDefault();
         const r = canvas.getBoundingClientRect();
@@ -1140,6 +1142,7 @@ function init() {
         mouseX = (rawX - contentOffsetX) / contentScale;
         mouseY = (rawY - contentOffsetY) / contentScale;
         angle = Math.atan2(mouseY - CFG.FROG_Y, mouseX - CFG.FROG_X);
+        if (Math.hypot(rawX - touchStartX, rawY - touchStartY) > 12) touchMoved = true;
     }, {passive:false});
 
     canvas.addEventListener('touchstart', e => {
@@ -1147,11 +1150,20 @@ function init() {
         const r = canvas.getBoundingClientRect();
         const rawX = (e.touches[0].clientX - r.left) * (canvas.width / r.width);
         const rawY = (e.touches[0].clientY - r.top) * (canvas.height / r.height);
+        touchStartX = rawX;
+        touchStartY = rawY;
+        touchStartTime = Date.now();
+        touchMoved = false;
         mouseX = (rawX - contentOffsetX) / contentScale;
         mouseY = (rawY - contentOffsetY) / contentScale;
         angle = Math.atan2(mouseY - CFG.FROG_Y, mouseX - CFG.FROG_X);
-        shoot();
+        touchShootTimer = setTimeout(() => { touchMoved = true; }, 180);
     }, {passive:false});
+
+    canvas.addEventListener('touchend', e => {
+        if (touchShootTimer) { clearTimeout(touchShootTimer); touchShootTimer = null; }
+        if (!touchMoved && Date.now() - touchStartTime < 250) shoot();
+    });
 
     window.addEventListener('keydown', e => {
         if (e.code === 'Space') { e.preventDefault(); swapBall(); }
