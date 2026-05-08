@@ -1150,6 +1150,7 @@ function init() {
         mouseX = (rawX - contentOffsetX) / contentScale;
         mouseY = (rawY - contentOffsetY) / contentScale;
         angle = Math.atan2(mouseY - CFG.FROG_Y, mouseX - CFG.FROG_X);
+        shoot();
     }, {passive:false});
 
     window.addEventListener('keydown', e => {
